@@ -1,0 +1,15 @@
+.bg-gradient {
+	background: radial-gradient(
+			circle at top left,
+			rgb(0, 89, 184),
+			transparent 65%
+		),
+		radial-gradient(
+			circle at bottom right,
+			rgba(2, 184, 250, 0.849),
+			transparent 65%
+		),
+		white; /* Keeps the rest of the area white */
+	height: 100vh; /* Full viewport height */
+	margin: 0;
+}
