@@ -1,10 +1,24 @@
-"use server"
-
-import { addDoc, collection, getDocs, query, where } from "firebase/firestore"
-import { createUserWithEmailAndPassword, getAuth } from "firebase/auth"
+import {
+	addDoc,
+	collection,
+	getDocs,
+	query,
+	where,
+	updateDoc,
+	deleteDoc,
+} from "firebase/firestore"
+import {
+	createUserWithEmailAndPassword,
+	getAuth,
+} from "firebase/auth"
 import { db, app } from "../lib/firebase"
 
 const auth = getAuth(app)
+
+// Function to generate a unique agentId
+function generateAgentId() {
+	return Math.random().toString(36).substring(2, 10) // Generate random string as agentId
+}
 
 // Function to check if the email is unique
 export async function isUnique(email) {
@@ -23,7 +37,10 @@ async function generateUniqueEmail(baseEmail) {
 	let counter = 1
 
 	while (true) {
-		const emailQuery = query(collection(db, "agents"), where("email", "==", email))
+		const emailQuery = query(
+			collection(db, "agents"),
+			where("email", "==", email)
+		)
 		const emailSnapshot = await getDocs(emailQuery)
 
 		if (emailSnapshot.empty) break // Email is unique, exit loop
@@ -45,17 +62,27 @@ function generateUniquePassword() {
 export async function addAgent(agentData) {
 	// Generate unique email & password
 	const email = await generateUniqueEmail(
-		`${agentData.agentName.toLowerCase().replace(/\s+/g, "")}@deliveryagent.com`
+		`${agentData.agentName
+			.toLowerCase()
+			.replace(/\s+/g, "")}@deliveryagent.com`
 	)
 	const password = generateUniquePassword()
 
+	// Generate a unique agentId
+	const agentId = generateAgentId()
+
 	try {
 		// Create agent in Firebase Authentication
-		const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+		const userCredential = await createUserWithEmailAndPassword(
+			auth,
+			email,
+			password
+		)
 		const user = userCredential.user
 
 		// Add agent details to Firestore
 		const docRef = await addDoc(collection(db, "agents"), {
+			agentId, // Store the unique agentId
 			agentName: agentData.agentName,
 			mobileNumber: agentData.mobileNumber,
 			image: agentData.image || "",
@@ -80,4 +107,56 @@ export async function getAgents() {
 		agentId: doc.id, // Use Firestore Doc ID as Agent ID
 		...doc.data(),
 	}))
+}
+
+// Function to update agent details
+export const updateAgent = async (AgentId, updatedData) => {
+	try {
+		// Query the 'agents' collection for documents where the 'agentId' field matches the given AgentId
+		const q = query(
+			collection(db, "agents"),
+			where("agentId", "==", AgentId)
+		)
+		const querySnapshot = await getDocs(q)
+
+		// Check if a document with the matching agentId exists
+		if (!querySnapshot.empty) {
+			// Get the first matching document (agent)
+			const agentDoc = querySnapshot.docs[0] // Assuming agentId is unique
+			const agentDocRef = agentDoc.ref // Reference to the agent document
+
+			// Update the document with the new data
+			await updateDoc(agentDocRef, updatedData)
+			console.log("Agent updated successfully")
+		} else {
+			console.error(`No agent found with agentId: ${AgentId}`)
+		}
+	} catch (error) {
+		console.error("Error updating agent: ", error)
+	}
+}
+export const deleteAgent = async (AgentId) => {
+	try {
+		// Query the 'stores' collection for documents where the 'storeId' field matches the given storeId
+		const q = query(
+			collection(db, "agents"),
+			where("agentId", "==", AgentId)
+		)
+		const querySnapshot = await getDocs(q)
+
+		// Check if a document with the matching storeId exists
+		if (!querySnapshot.empty) {
+			// Get the first matching document (store)
+			const storeDoc = querySnapshot.docs[0] // Assuming storeId is unique
+			const storeDocRef = storeDoc.ref // Reference to the store document
+
+			// Delete the document
+			await deleteDoc(storeDocRef)
+			console.log("Agent deleted successfully")
+		} else {
+			console.error(`No agent found with AgentId: ${AgentId}`)
+		}
+	} catch (error) {
+		console.error("Error deleting store: ", error)
+	}
 }

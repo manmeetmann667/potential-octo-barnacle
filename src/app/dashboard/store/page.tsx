@@ -6,6 +6,8 @@ import {
 	addStore,
 	fetchStores,
 	importUsersFromFirestore,
+	updateStore,
+	deleteStore, // Import the deleteStore function
 } from "../../service/store.service" // Adjust as per the correct path
 
 export default function Page() {
@@ -19,6 +21,7 @@ export default function Page() {
 		password: string
 		status: string
 	}
+
 	const [addressOne, setAddressOne] = useState("")
 	const [addressTwo, setAddressTwo] = useState("")
 	const [category, setCategory] = useState("")
@@ -27,9 +30,12 @@ export default function Page() {
 	const [isOpen, setIsOpen] = useState(false)
 	const [status, setStatus] = useState("Active")
 
-	//Fetch data
+	// Fetch data
 	const [stores, setStores] = useState<Store[]>([])
 	const [isFetching, setIsFetching] = useState(true)
+	const [selectedStores, setSelectedStores] = useState<Store | null>(
+		null
+	)
 
 	const getStores = async () => {
 		setIsFetching(true)
@@ -46,7 +52,6 @@ export default function Page() {
 
 	useEffect(() => {
 		getStores()
-		importUsersFromFirestore()
 	}, [])
 
 	const generateValues = () => {
@@ -64,35 +69,65 @@ export default function Page() {
 		const password = Math.random().toString(36).slice(-10)
 		return { storeId, email, password }
 	}
+
 	const handleSubmit = async (e: any) => {
 		e.preventDefault()
 		setLoading(true)
-		const { storeId, email, password } = generateValues()
 
-		// Add agent data and handle response
 		try {
-			const res = await addStore({
-				addressOne,
-				storeId,
-				addressTwo,
-				category,
-				storeNumber,
-				email,
-				password,
-				status,
-			})
-			if (res) {
-				toast.success("Store added Successfully")
+			console.log(selectedStores?.storeId)
+
+			if (selectedStores) {
+				// Update store if selected
+				await updateStore(selectedStores.storeId, {
+					addressOne,
+					addressTwo,
+					category,
+					storeNumber,
+					status,
+				})
+				toast.success("Store Updated Successfully")
 				setIsOpen(false)
 				clearFormFields() // Clear the form fields on success
-				await getStores()
-				await importUsersFromFirestore()
+				await getStores() // Fetch updated store list
+			} else {
+				const { storeId, email, password } = generateValues()
+				// Add store if not selected
+				const res = await addStore({
+					addressOne,
+					storeId,
+					addressTwo,
+					category,
+					storeNumber,
+					email,
+					password,
+					status,
+				})
+				toast.success("Store Added Successfully")
+				if (res) {
+					setIsOpen(false)
+					clearFormFields() // Clear the form fields on success
+					await getStores() // Fetch the updated list of stores
+					await importUsersFromFirestore() // Only call this when adding a store
+				}
 			}
 		} catch (error) {
-			toast.error("Unable to add Store!!")
+			toast.error("Unable to process the store!")
 		} finally {
 			setLoading(false)
 		}
+	}
+
+	const handleEditClick = (store: Store) => {
+		setSelectedStores(store)
+		console.log(selectedStores?.storeId)
+
+		setAddressOne(store.addressOne)
+		setAddressTwo(store.addressTwo)
+		setCategory(store.category)
+		setStoreNumber(store.storeNumber)
+		setStatus(store.status)
+		setIsOpen(true)
 	}
 
 	// Clear all form fields
@@ -107,6 +142,22 @@ export default function Page() {
 	const handleCloseModal = () => {
 		setIsOpen(false)
 		clearFormFields()
+	}
+
+	// Handle Delete Store
+	const handleDeleteClick = async (storeId: string) => {
+		const confirmDelete = window.confirm(
+			"Are you sure you want to delete this store?"
+		)
+		if (confirmDelete) {
+			try {
+				await deleteStore(storeId) // Call the delete function from store.service
+				toast.success("Store deleted successfully!")
+				await getStores() // Fetch updated store list after deletion
+			} catch (error) {
+				toast.error("Error deleting store!")
+			}
+		}
 	}
 
 	return (
@@ -145,6 +196,7 @@ export default function Page() {
 								<th className="px-4 py-2">Store Email</th>
 								<th className="px-4 py-2">Store Password</th>
 								<th className="px-4 py-2">Status</th>
+								<th className="px-4 py-2">Action</th>
 							</tr>
 						</thead>
 						{stores.map((store) => (
@@ -152,7 +204,6 @@ export default function Page() {
 								<tr className="border-t text-center">
 									<td className="px-4 py-2">{store.addressOne}</td>
 									<td className="px-4 py-2">{store.addressTwo}</td>
-
 									<td className="px-4 py-2">{store.category}</td>
 									<td className="px-4 py-2">{store.storeNumber}</td>
 									<td className="px-4 py-2">{store.storeId}</td>
@@ -165,12 +216,12 @@ export default function Page() {
 													store.status === "Active"
 														? "bg-green-500 text-white rounded-lg"
 														: ""
-												} 
+												}
                         ${
 													store.status === "Inactive"
 														? "bg-yellow-500 text-white rounded-lg"
 														: ""
-												} 
+												}
                         ${
 													store.status === "Suspended"
 														? "bg-red-600 text-white rounded-lg"
@@ -180,6 +231,21 @@ export default function Page() {
 											{store.status}
 										</div>
 									</td>
+									<div className="flex items-center px-5 gap-5 py-6">
+										<td
+											className="bg-blue-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
+											onClick={() => handleEditClick(store)}
+										>
+											Edit
+										</td>
+										<button
+											type="button"
+											className="bg-red-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
+											onClick={() => handleDeleteClick(store.storeId)} // Delete function
+										>
+											Delete
+										</button>
+									</div>
 								</tr>
 							</tbody>
 						))}
@@ -195,7 +261,7 @@ export default function Page() {
 							<div className="p-6 space-y-4 md:space-y-6 sm:p-8">
 								<div className="flex items-center justify-between">
 									<h2 className="text-4xl font-semibold">
-										Add Store
+										{selectedStores ? "Edit store" : "Add Store"}
 									</h2>
 									<X
 										className="hover:text-red-600 cursor-pointer"
@@ -203,6 +269,7 @@ export default function Page() {
 									/>
 								</div>
 								<form className="space-y-4" onSubmit={handleSubmit}>
+									{/* Form Fields */}
 									<div className="flex gap-4">
 										<div className="flex-grow">
 											<input
@@ -213,7 +280,7 @@ export default function Page() {
 												}
 												placeholder="Address Line 1"
 												required
-												className=" border-2 border-stroke outline-indigo-700  rounded-lg w-full p-2.5 "
+												className=" border-2 border-stroke outline-indigo-700 rounded-lg w-full p-2.5 "
 											/>
 										</div>
 										<div className="flex-grow">
@@ -265,7 +332,11 @@ export default function Page() {
 										type="submit"
 										className="w-full text-white bg-indigo-700 hover:opacity-75 focus:ring-4 focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center"
 									>
-										{loading ? "Saving..." : "Add Store"}
+										{loading
+											? "Saving..."
+											: selectedStores
+											? "Update Store"
+											: "Add Store"}
 									</button>
 								</form>
 							</div>

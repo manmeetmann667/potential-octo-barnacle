@@ -2,7 +2,12 @@
 
 import React, { useEffect, useState } from "react"
 import { toast } from "react-toastify"
-import { addAgent, getAgents } from "../../service/agent.service" // Adjust path if needed
+import {
+	addAgent,
+	deleteAgent,
+	getAgents,
+	updateAgent,
+} from "../../service/agent.service" // Adjust path if needed
 import { X } from "lucide-react"
 
 export default function Page() {
@@ -20,6 +25,9 @@ export default function Page() {
 	const [loading, setLoading] = useState(false)
 	const [isOpen, setIsOpen] = useState(false)
 	const [fileName, setFileName] = useState("")
+	const [selectedAgent, setSelectedAgent] = useState<Agent | null>(
+		null
+	)
 
 	// Fetch agents
 	const [agents, setAgents] = useState<Agent[]>([])
@@ -59,6 +67,17 @@ export default function Page() {
 		setLoading(true)
 
 		try {
+			if (selectedAgent) {
+				await updateAgent(selectedAgent.agentId, {
+					agentName,
+					mobileNumber,
+					image: fileName,
+				})
+				toast.success("Store Updated Successfully")
+				setIsOpen(false)
+				clearFormFields() // Clear the form fields on success
+				await getAgents() // Fetch updated store list
+			}
 			const res = await addAgent({
 				agentName,
 				mobileNumber,
@@ -84,11 +103,35 @@ export default function Page() {
 		setMobileNumber("")
 		setFileName("")
 	}
+	const handleEditClick = (agent: Agent) => {
+		setSelectedAgent(agent)
+		console.log(selectedAgent?.agentId)
+
+		setAgentName(agent.agentName)
+		setMobileNumber(agent.mobileNumber)
+		setFileName("")
+
+		setIsOpen(true)
+	}
 
 	// Close modal
 	const handleCloseModal = () => {
 		setIsOpen(false)
 		clearFormFields()
+	}
+	const handleDeleteClick = async (storeId: string) => {
+		const confirmDelete = window.confirm(
+			"Are you sure you want to delete this Agent?"
+		)
+		if (confirmDelete) {
+			try {
+				await deleteAgent(storeId) // Call the delete function from store.service
+				toast.success("Agent deleted successfully!")
+				await fetchAgents() // Fetch updated store list after deletion
+			} catch (error) {
+				toast.error("Error deleting Agent!")
+			}
+		}
 	}
 
 	return (
@@ -119,6 +162,7 @@ export default function Page() {
 								<th className="px-4 py-2">Image URL</th>
 								<th className="px-4 py-2">Email</th>
 								<th className="px-4 py-2">Password</th>
+								<th className="px-4 py-2">Action</th>
 							</tr>
 						</thead>
 						{agents.map((agent) => (
@@ -136,6 +180,22 @@ export default function Page() {
 									</td>
 									<td className="px-4 py-2">{agent.email}</td>
 									<td className="px-4 py-2">{agent.password}</td>
+									<div className="flex items-center px-5 gap-5 py-6">
+										<td
+											className="bg-blue-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
+											onClick={() => handleEditClick(agent)}
+										>
+											Edit
+										</td>
+										<button
+											type="button"
+											onClick={() => handleDeleteClick(agent.agentId)}
+											className="bg-red-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
+											// onClick={() => handleDeleteClick(store.storeId)} // Delete function
+										>
+											Delete
+										</button>
+									</div>
 								</tr>
 							</tbody>
 						))}
@@ -148,8 +208,13 @@ export default function Page() {
 				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
 					<div className="bg-white p-6 rounded-lg w-96">
 						<div className="flex justify-between items-center">
-							<h2 className="text-xl font-semibold">Add Agent</h2>
-							<X className="cursor-pointer" onClick={handleCloseModal} />
+							<h2 className="text-xl font-semibold">
+								{selectedAgent ? "Edit Agent" : "Add Agent"}
+							</h2>
+							<X
+								className="cursor-pointer"
+								onClick={handleCloseModal}
+							/>
 						</div>
 						<form className="space-y-4 mt-4" onSubmit={handleSubmit}>
 							<input
@@ -175,7 +240,11 @@ export default function Page() {
 								className="w-full p-2"
 							/>
 							<button className="bg-blue-600 text-white p-2 w-full rounded">
-								{loading ? "Saving..." : "Add Agent"}
+								{loading
+									? "Saving..."
+									: selectedAgent
+									? "Update Agent"
+									: "Add Agent"}
 							</button>
 						</form>
 					</div>
