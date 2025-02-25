@@ -22,5 +22,10 @@ export const config = {
 		"/dashboard/agent",
 		"/dashboard/order",
 		"/dashboard/store",
+		"/storedashboard",
+		"/storedashboard/Categories",
+		"/storedashboard/Products",
+		"/storedashboard/Orders",
+		"/storedashboard/barcode",
 	], // Protect all routes under /dashboard
 }

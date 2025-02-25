@@ -42,12 +42,6 @@ export const fetchProductsForCategory = async (
 	categoryId
 ) => {
 	try {
-		console.log(
-			"Fetching products for Store:",
-			storeId,
-			"Category:",
-			categoryId
-		)
 		const productsSnap = await getDocs(
 			collection(
 				db,
