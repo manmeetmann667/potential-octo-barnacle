@@ -18,6 +18,8 @@ interface Product {
 	productImageUrl?: string
 	catalogueCategoryId?: string
 	catalogueCategoryName?: string
+	stock?: string
+	price?: string
 }
 
 interface Category {
@@ -41,6 +43,8 @@ export default function ProductsPage() {
 		productDescription: "",
 		productImageUrl: "",
 		catalogueCategoryId: "",
+		price: "",
+		stock: "",
 	})
 
 	useEffect(() => {
@@ -136,6 +140,8 @@ export default function ProductsPage() {
 				productDescription: "",
 				productImageUrl: "",
 				catalogueCategoryId: "",
+				stock: "",
+				price: "",
 			})
 
 			fetchProducts(formData.catalogueCategoryId)
@@ -201,6 +207,8 @@ export default function ProductsPage() {
 			productDescription: product.productDescription || "",
 			productImageUrl: product.productImageUrl || "",
 			catalogueCategoryId: product.catalogueCategoryId || "",
+			stock: product.stock || "",
+			price: product.price || "",
 		})
 		setIsProductModalOpen(true)
 	}
@@ -244,6 +252,8 @@ export default function ProductsPage() {
 							<th className="px-4 py-2">Description</th>
 							<th className="px-4 py-2">Image</th>
 							<th className="px-4 py-2">Category Name</th>
+							<th className="px-4 py-2">Stock</th>
+							<th className="px-4 py-2">Price</th>
 							<th className="px-4 py-2">Actions</th>
 						</tr>
 					</thead>
@@ -267,6 +277,8 @@ export default function ProductsPage() {
 									<td className="px-4 py-2">
 										{product.catalogueCategoryName}
 									</td>
+									<td className="px-4 py-2">{product.stock}</td>
+									<td className="px-4 py-2">{product.price}</td>
 									<td className="flex items-center gap-5 py-6">
 										<button
 											onClick={() => openEditModal(product)}
@@ -343,6 +355,30 @@ export default function ProductsPage() {
 								})
 							}
 							placeholder="Product Image URL"
+							className="border-2 w-full p-2 rounded-lg mb-2"
+						/>
+						<input
+							type="text"
+							value={formData.stock}
+							onChange={(e) =>
+								setFormData({
+									...formData,
+									stock: e.target.value,
+								})
+							}
+							placeholder="Stock"
+							className="border-2 w-full p-2 rounded-lg mb-2"
+						/>
+						<input
+							type="text"
+							value={formData.price}
+							onChange={(e) =>
+								setFormData({
+									...formData,
+									price: e.target.value,
+								})
+							}
+							placeholder="Price"
 							className="border-2 w-full p-2 rounded-lg mb-2"
 						/>
 						<select
