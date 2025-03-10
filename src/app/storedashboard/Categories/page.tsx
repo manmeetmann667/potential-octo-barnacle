@@ -178,8 +178,8 @@ export default function Page() {
 	}
 
 	return (
-		<div className="p-6">
-			<div className="flex justify-between items-center">
+		<div className="p-6 flex-grow">
+			<div className="flex justify-between items-center gap-5">
 				<h2 className="font-semibold text-5xl">
 					Manage Agents & Categories
 				</h2>

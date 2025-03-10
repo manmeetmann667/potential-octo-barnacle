@@ -11,9 +11,7 @@ export default function DashboardLayout({
 			<Navbar />
 			<div className="flex">
 				<SideBar />
-				<main className="ml-72 flex-grow mt-10 mb-10 mr-10">
-					{children}
-				</main>
+				<main className="my-5 flex-grow mx-5">{children}</main>
 			</div>
 			{/* This ensures nested pages render inside */}
 		</div>
