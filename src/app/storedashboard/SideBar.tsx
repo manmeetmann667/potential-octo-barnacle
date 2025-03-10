@@ -43,7 +43,7 @@ export default function Sidebar() {
 				</li>
 				<li>
 					<Link
-						href="/orders"
+						href="/storedashboard/orders"
 						className="hover:text-blue-400 transition-all duration-300"
 					>
 						Orders
