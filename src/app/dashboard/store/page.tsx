@@ -9,6 +9,7 @@ import {
 	updateStore,
 	deleteStore, // Import the deleteStore function
 } from "../../service/store.service" // Adjust as per the correct path
+import { getCoordinates } from "@/utils/geocode"
 
 export default function Page() {
 	interface Store {
@@ -20,6 +21,7 @@ export default function Page() {
 		email: string
 		password: string
 		status: string
+		location?: { lat: number; lng: number }; // New field for coordinates
 	}
 
 	const [addressOne, setAddressOne] = useState("")
@@ -29,6 +31,8 @@ export default function Page() {
 	const [loading, setLoading] = useState(false)
 	const [isOpen, setIsOpen] = useState(false)
 	const [status, setStatus] = useState("Active")
+	const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+
 
 	// Fetch data
 	const [stores, setStores] = useState<Store[]>([])
@@ -76,7 +80,14 @@ export default function Page() {
 
 		try {
 			console.log(selectedStores?.storeId)
+			
+			const fullAddress = `${addressOne}, ${addressTwo}`;
+			console.log("Fetching coordinates for:", `${addressOne}, ${addressTwo}`);
 
+    		const coords = await getCoordinates(fullAddress);
+
+    		if (!coords) throw new Error("Failed to get coordinates");
+			
 			if (selectedStores) {
 				// Update store if selected
 				await updateStore(selectedStores.storeId, {
@@ -85,14 +96,15 @@ export default function Page() {
 					category,
 					storeNumber,
 					status,
-				})
+					location:coords,
+				});
 				toast.success("Store Updated Successfully")
-				setIsOpen(false)
-				clearFormFields() // Clear the form fields on success
-				await getStores() // Fetch updated store list
+				// setIsOpen(false)
+				// clearFormFields() // Clear the form fields on success
+				// await getStores() // Fetch updated store list
 			} else {
 				const { storeId, email, password } = generateValues()
-				// Add store if not selected
+				// Add new store 
 				const res = await addStore({
 					addressOne,
 					storeId,
@@ -102,16 +114,17 @@ export default function Page() {
 					email,
 					password,
 					status,
+					location:coords, 
 				})
-				toast.success("Store Added Successfully")
-				if (res) {
+				toast.success("Store Added Successfully");
+			}
 					setIsOpen(false)
 					clearFormFields() // Clear the form fields on success
 					await getStores() // Fetch the updated list of stores
 					await importUsersFromFirestore() // Only call this when adding a store
 				}
-			}
-		} catch (error) {
+			
+		 catch (error) {
 			toast.error("Unable to process the store!")
 		} finally {
 			setLoading(false)
@@ -127,6 +140,8 @@ export default function Page() {
 		setCategory(store.category)
 		setStoreNumber(store.storeNumber)
 		setStatus(store.status)
+		setLocation(store.location || null);
+
 		setIsOpen(true)
 	}
 

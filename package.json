@@ -14,9 +14,11 @@
     "framer-motion": "^12.4.10",
     "lucide-react": "^0.475.0",
     "next": "^15.2.1",
+    "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.4.0",
+    "react-qr-code": "^2.0.15",
     "react-toastify": "^11.0.3",
     "tw-elements-react": "^1.0.0-alpha-end"
   },
