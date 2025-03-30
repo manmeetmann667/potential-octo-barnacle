@@ -7,12 +7,13 @@ import {
 	fetchStores,
 	importUsersFromFirestore,
 	updateStore,
-	deleteStore, // Import the deleteStore function
-} from "../../service/store.service" // Adjust as per the correct path
+	deleteStore,
+} from "../../service/store.service"
 import { getCoordinates } from "@/utils/geocode"
 
 export default function Page() {
 	interface Store {
+		storeName: string,
 		addressOne: string
 		addressTwo: string
 		storeId: string
@@ -21,7 +22,7 @@ export default function Page() {
 		email: string
 		password: string
 		status: string
-		location?: { lat: number; lng: number }; // New field for coordinates
+		location?: { lat: number; lng: number };
 	}
 
 	const [addressOne, setAddressOne] = useState("")
@@ -32,14 +33,12 @@ export default function Page() {
 	const [isOpen, setIsOpen] = useState(false)
 	const [status, setStatus] = useState("Active")
 	const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-
+	const [storeName, setStoreName] = useState("");
 
 	// Fetch data
 	const [stores, setStores] = useState<Store[]>([])
 	const [isFetching, setIsFetching] = useState(true)
-	const [selectedStores, setSelectedStores] = useState<Store | null>(
-		null
-	)
+	const [selectedStores, setSelectedStores] = useState<Store | null>(null)
 
 	const getStores = async () => {
 		setIsFetching(true)
@@ -96,35 +95,32 @@ export default function Page() {
 					category,
 					storeNumber,
 					status,
-					location:coords,
+					storeName,
+					location: coords,
 				});
 				toast.success("Store Updated Successfully")
-				// setIsOpen(false)
-				// clearFormFields() // Clear the form fields on success
-				// await getStores() // Fetch updated store list
 			} else {
 				const { storeId, email, password } = generateValues()
 				// Add new store 
 				const res = await addStore({
 					addressOne,
 					storeId,
+					storeName,
 					addressTwo,
 					category,
 					storeNumber,
 					email,
 					password,
 					status,
-					location:coords, 
+					location: coords, 
 				})
 				toast.success("Store Added Successfully");
 			}
-					setIsOpen(false)
-					clearFormFields() // Clear the form fields on success
-					await getStores() // Fetch the updated list of stores
-					await importUsersFromFirestore() // Only call this when adding a store
-				}
-			
-		 catch (error) {
+			setIsOpen(false)
+			clearFormFields() // Clear the form fields on success
+			await getStores() // Fetch the updated list of stores
+			await importUsersFromFirestore() // Only call this when adding a store
+		} catch (error) {
 			toast.error("Unable to process the store!")
 		} finally {
 			setLoading(false)
@@ -141,6 +137,7 @@ export default function Page() {
 		setStoreNumber(store.storeNumber)
 		setStatus(store.status)
 		setLocation(store.location || null);
+		setStoreName(store.storeName || ""); // Add this line to set storeName when editing
 
 		setIsOpen(true)
 	}
@@ -151,6 +148,7 @@ export default function Page() {
 		setAddressOne("")
 		setAddressTwo("")
 		setStoreNumber("")
+		setStoreName("") // Add this line to clear storeName
 	}
 
 	// Close the modal and clear fields
@@ -203,6 +201,7 @@ export default function Page() {
 					<table className="w-full border-collapse">
 						<thead>
 							<tr className="bg-gray-100">
+								<th className="px-4 py-2">Store Name</th> {/* Add this column */}
 								<th className="px-4 py-2">Address Line 1</th>
 								<th className="px-4 py-2">Address Line 2</th>
 								<th className="px-4 py-2">Store Category Name</th>
@@ -217,6 +216,7 @@ export default function Page() {
 						{stores.map((store) => (
 							<tbody key={store.storeId}>
 								<tr className="border-t text-center">
+									<td className="px-4 py-2">{store.storeName}</td> {/* Add this cell */}
 									<td className="px-4 py-2">{store.addressOne}</td>
 									<td className="px-4 py-2">{store.addressTwo}</td>
 									<td className="px-4 py-2">{store.category}</td>
@@ -284,6 +284,17 @@ export default function Page() {
 									/>
 								</div>
 								<form className="space-y-4" onSubmit={handleSubmit}>
+									{/* Add Store Name field */}
+									<div className="flex-grow">
+										<input
+											type="text"
+											value={storeName}
+											onChange={(e) => setStoreName(e.target.value)}
+											placeholder="Store Name"
+											required
+											className="border-2 border-stroke outline-indigo-700 rounded-lg w-full p-2.5"
+										/>
+									</div>
 									{/* Form Fields */}
 									<div className="flex gap-4">
 										<div className="flex-grow">
@@ -295,7 +306,7 @@ export default function Page() {
 												}
 												placeholder="Address Line 1"
 												required
-												className=" border-2 border-stroke outline-indigo-700 rounded-lg w-full p-2.5 "
+												className="border-2 border-stroke outline-indigo-700 rounded-lg w-full p-2.5"
 											/>
 										</div>
 										<div className="flex-grow">
@@ -308,7 +319,7 @@ export default function Page() {
 												name="MobileNumber"
 												placeholder="Address Line 2"
 												required
-												className=" border-2 border-stroke outline-indigo-700 text-gray-900 rounded-lg w-full p-2.5 "
+												className="border-2 border-stroke outline-indigo-700 text-gray-900 rounded-lg w-full p-2.5"
 											/>
 										</div>
 									</div>
@@ -319,7 +330,7 @@ export default function Page() {
 											onChange={(e) => setStoreNumber(e.target.value)}
 											placeholder="Store Number"
 											required
-											className=" border-2 border-stroke outline-indigo-700 text-gray-900 rounded-lg w-full p-2.5 "
+											className="border-2 border-stroke outline-indigo-700 text-gray-900 rounded-lg w-full p-2.5"
 										/>
 									</div>
 									<div className="flex flex-col gap-5">
@@ -329,7 +340,7 @@ export default function Page() {
 											onChange={(e) => setCategory(e.target.value)}
 											placeholder="Category"
 											required
-											className=" border-2 border-stroke outline-indigo-700 text-gray-900 rounded-lg w-full p-2.5 "
+											className="border-2 border-stroke outline-indigo-700 text-gray-900 rounded-lg w-full p-2.5"
 										/>
 										<select
 											className="w-full border border-gray-300 rounded-md p-3 outline-indigo-700"
