@@ -164,59 +164,100 @@ const Orders: React.FC = () => {
     return querySnapshot.docs[0]?.id || null;
   }, []);
 
-  const determineOverallOrderStatus = (storeStatuses: Record<string, ProductStatus>): ProductStatus => {
-    if (!storeStatuses || Object.keys(storeStatuses).length === 0) {
-      return "pending";
-    }
+  // const determineOverallOrderStatus = (storeStatuses: Record<string, ProductStatus>): ProductStatus => {
+  //   if (!storeStatuses || Object.keys(storeStatuses).length === 0) {
+  //     return "pending";
+  //   }
     
-    const statusValues = Object.values(storeStatuses);
+  //   const statusValues = Object.values(storeStatuses);
     
-    if (statusValues.length === 1) {
-      return statusValues[0];
-    }
+  //   if (statusValues.length === 1) {
+  //     return statusValues[0];
+  //   }
     
-    const allAccepted = statusValues.every(status => status === "accepted");
-    const allRejected = statusValues.every(status => status === "rejected");
-    const hasPending = statusValues.some(status => status === "pending");
+  //   const allAccepted = statusValues.every(status => status === "accepted");
+  //   const allRejected = statusValues.every(status => status === "rejected");
+  //   const hasPending = statusValues.some(status => status === "pending");
     
-    if (allAccepted) return "accepted";
-    if (allRejected) return "rejected";
+  //   if (allAccepted) return "accepted";
+  //   if (allRejected) return "rejected";
     
-    if (!hasPending && statusValues.some(status => status === "accepted") && statusValues.some(status => status === "rejected")) {
-      return "reviewed";
-    }
+  //   if (!hasPending && statusValues.some(status => status === "accepted") && statusValues.some(status => status === "rejected")) {
+  //     return "reviewed";
+  //   }
     
-    return "pending";
-  };
+  //   return "pending";
+  // };
 
   const determineOrderStatus = (storeStatuses: { [s: string]: unknown; } | ArrayLike<unknown>) => {
     if (!storeStatuses || Object.keys(storeStatuses).length === 0) {
-      return "pending";
+        return "pending";
     }
-    
+
     const statusValues = Object.values(storeStatuses);
-    
+
     if (statusValues.length === 1 && statusValues[0] === "rejected") {
-      return "rejected";
+        return "rejected";
     }
-    
+
     if (statusValues.length === 1 && statusValues[0] === "accepted") {
-      return "accepted";
+        return "accepted";
     }
-    
+
     const allAccepted = statusValues.every(status => status === "accepted");
     const allRejected = statusValues.every(status => status === "rejected");
     const hasPending = statusValues.some(status => status === "pending");
-    
+
     if (allAccepted) return "accepted";
     if (allRejected) return "rejected";
     
-    if (!hasPending && statusValues.some(status => status === "accepted") && statusValues.some(status => status === "rejected")) {
-      return "reviewed";
+    // If there are no "pending" statuses, and not all are "accepted" or "rejected", return "reviewed"
+    if (!hasPending) {
+        return "reviewed";
     }
-    
+
     return "pending";
-  };
+};
+
+  // const determineOrderStatus = (storeStatuses: { [s: string]: unknown; } | ArrayLike<unknown>) => {
+  //   if (!storeStatuses || Object.keys(storeStatuses).length === 0) {
+  //     return "pending";
+  //   }
+    
+  //   const statusValues = Object.values(storeStatuses);
+    
+  //   if (statusValues.length === 1 && statusValues[0] === "rejected") {
+  //     return "rejected";
+  //   }
+    
+  //   if (statusValues.length === 1 && statusValues[0] === "accepted") {
+  //     return "accepted";
+  //   }
+
+  //   if (statusValues.length === 1 && statusValues[0] === "reviewed") {
+  //     return "reviewed";
+  //   }
+    
+  //   const allAccepted = statusValues.every(status => status === "accepted");
+  //   const allRejected = statusValues.every(status => status === "rejected");
+  //   const allReviewed = statusValues.every(status => status === "reviewed");
+  //   const hasPending = statusValues.some(status => status === "pending");
+    
+  //   if (allAccepted) return "accepted";
+  //   if (allRejected) return "rejected";
+  //   if (allReviewed) return "reviewed";
+
+    
+  //   if (!hasPending && statusValues.some(status => status === "accepted") && statusValues.some(status => status === "rejected")) {
+  //     return "reviewed";
+  //   }
+  //   if (!hasPending) {
+  //     return "reviewed";
+  // }
+    
+  //   return "pending";
+  // };
+
 
   const fetchStoreOrders = useCallback(async (orderId: string) => {
     const storeOrdersRef = collection(db, `Orders/${orderId}/StoreOrders`);
@@ -521,7 +562,7 @@ const Orders: React.FC = () => {
           storeStatuses: updatedStoreStatuses
         });
         
-        const overallStatus = determineOverallOrderStatus(updatedStoreStatuses);
+        const overallStatus = determineOrderStatus(updatedStoreStatuses);
         
         await updateDoc(orderRef, {
           status: overallStatus,
