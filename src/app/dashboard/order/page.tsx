@@ -1448,7 +1448,8 @@ import { collection, query, where, onSnapshot, updateDoc, doc, getDoc, getDocs, 
 import { useState, useEffect, useCallback } from "react";
 import { CheckCircleIcon, TruckIcon, UserIcon, PackageIcon, ClockIcon } from "lucide-react";
 
-type ProductStatus = "pending" | "accepted" | "rejected" | "packaged" | "onway" | "delivered";
+// type ProductStatus = "pending" | "accepted" | "rejected" | "packaged" | "onway" | "delivered";
+type ProductStatus = "pending" | "reviewed" | "accepted" | "rejected" | "assigned" | "picked" | "onway" | "delivered";
 
 type Product = {
   id: string;
@@ -1517,7 +1518,7 @@ const SuperAdminOrders: React.FC = () => {
     const storeData: Record<string, string> = {};
     
     storesSnapshot.docs.forEach(doc => {
-      storeData[doc.id] = doc.data().name || "Unknown Store";
+      storeData[doc.id] = doc.data().storeName || "Unknown Store";
     });
     
     setStoreNames(storeData);
@@ -1576,172 +1577,147 @@ const fetchProductsForOrder = useCallback(async (orderId: string, storeOrderId: 
     status: doc.data().status || "pending"
   } as Product));
 }, []);
-
-  const fetchOrders = useCallback(async (storeData: Record<string, string>) => {
-    const ordersRef = collection(db, "Orders");
-    
-    // Query for all orders that might need delivery assignment
-    const potentialOrdersQuery = query(
-      ordersRef,
-      orderBy("createdAt", "desc")
-    );
-    
-    const unsubscribe = onSnapshot(potentialOrdersQuery, async (snapshot) => {
-      const unassigned: Order[] = [];
-      const assigned: Order[] = [];
-      
-      for (const doc of snapshot.docs) {
-        const data = doc.data();
-        const storeOrders = await fetchStoreOrders(doc.id);
-        
-        // Skip if order is rejected
-        if (data.status === "rejected") continue;
-        
-        // Check store statuses
-        const storeStatuses = data.storeStatuses || {};
-        const allStoresDecided = Object.values(storeStatuses).every(
-          status => status === "accepted" || status === "rejected"
-        );
-        
-        // Skip if not all stores have decided (accepted/rejected)
-        if (!allStoresDecided) continue;
-        
-        // Get products from all store orders
-        const productsPromises = storeOrders.map(storeOrder => 
-          fetchProductsForOrder(doc.id, storeOrder.id)
-        );
-        const productsArrays = await Promise.all(productsPromises);
-        const products = productsArrays.flat();
-        
-        const order: Order = {
-          id: doc.id,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          status: data.status || "pending",
-          userId: data.userId || "Unknown User",
-          location: {
-            address: data.location?.address || "Unknown Location",
-            latitude: data.location?.latitude || 0,
-            longitude: data.location?.longitude || 0
-          },
-          storeStatuses,
-          storeOrders,
-          products,
-          deliveryAgentId: data.deliveryAgentId || null,
-          deliveryAgentName: data.deliveryAgentName || null,
-          storeName: storeData[data.storeId] || "Unknown Store"
-        };
+const fetchOrders = useCallback(async (storeData: Record<string, string>) => {
+  const ordersRef = collection(db, "Orders");
   
-        // Categorize as unassigned or assigned
-        if (!data.deliveryAgentId) {
-          unassigned.push(order);
-        } else {
-          assigned.push(order);
-        }
+  // Query for all orders ordered by creation date
+  const ordersQuery = query(
+    ordersRef,
+    orderBy("createdAt", "desc")
+  );
+  
+  const unsubscribe = onSnapshot(ordersQuery, async (snapshot) => {
+    const unassigned: Order[] = [];
+    const assigned: Order[] = [];
+    
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      
+      // Skip if completely rejected orders
+      if (data.status === "rejected") continue;
+      
+      // Fetch related data
+      const storeOrders = await fetchStoreOrders(doc.id);
+      const productsPromises = storeOrders.map(storeOrder => 
+        fetchProductsForOrder(doc.id, storeOrder.id)
+      );
+      const productsArrays = await Promise.all(productsPromises);
+      const products = productsArrays.flat();
+      
+      const order: Order = {
+        id: doc.id,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        status: data.status || "pending",
+        userId: data.userId || "Unknown User",
+        location: {
+          address: data.location?.address || "Unknown Location",
+          latitude: data.location?.latitude || 0,
+          longitude: data.location?.longitude || 0
+        },
+        storeStatuses: data.storeStatuses || {},
+        storeOrders,
+        products,
+        deliveryAgentId: data.deliveryAgentId || null,
+        deliveryAgentName: data.deliveryAgentName || null,
+        // storeName: storeData[data.storeId] || "Unknown Store"
+        storeName: storeOrders.length > 0 
+    ? storeData[storeOrders[0].storeId] || "Unknown Store" 
+    : storeData[data.storeId] || "Unknown Store"
+      };
+
+      // Simple categorization - if it has an agent, it's assigned
+      if (data.deliveryAgentId) {
+        assigned.push(order);
+      } 
+      // For unassigned - only show those with accepted or reviewed status
+      else if (data.status === "accepted" || data.status === "reviewed") {
+        unassigned.push(order);
       }
+    }
+
+    setUnassignedOrders(unassigned.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+    setAssignedOrders(assigned.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+    setIsLoading(false);
+  });
   
-      setUnassignedOrders(unassigned.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
-      setAssignedOrders(assigned.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
-      setIsLoading(false);
-    });
+  return unsubscribe;
+}, [fetchStoreOrders, fetchProductsForOrder]);
+//LAST SECOND
+//   const fetchOrders = useCallback(async (storeData: Record<string, string>) => {
+//     const ordersRef = collection(db, "Orders");
     
-    return unsubscribe;
-  }, [fetchStoreOrders, fetchProductsForOrder]);
-  // const fetchStoreOrders = useCallback(async (orderId: string) => {
-  //   const storeOrdersRef = collection(db, `Orders/${orderId}/StoreOrders`);
-  //   const snapshot = await getDocs(storeOrdersRef);
-  //   return snapshot.docs.map(doc => ({
-  //     id: doc.id,
-  //     storeId: doc.data().storeId,
-  //     status: doc.data().status || "pending",
-  //     createdAt: doc.data().createdAt?.toDate() || new Date(),
-  //     timestamps: {
-  //       accepted: doc.data().acceptedAt?.toDate(),
-  //       rejected: doc.data().rejectedAt?.toDate(),
-  //       packaged: doc.data().packagedAt?.toDate(),
-  //       onway: doc.data().onwayAt?.toDate(),
-  //       delivered: doc.data().deliveredAt?.toDate(),
-  //     }
-  //   } as StoreOrder));
-  // }, []);
-
-  // const fetchProductsForOrder = useCallback(async (orderId: string, storeOrderId: string) => {
-  //   const productsRef = collection(db, `Orders/${orderId}/StoreOrders/${storeOrderId}/products`);
-  //   const snapshot = await getDocs(productsRef);
-  //   return snapshot.docs.map(doc => ({
-  //     id: doc.id,
-  //     name: doc.data().name || "Unknown",
-  //     price: doc.data().price || 0,
-  //     quantity: doc.data().quantity || 0,
-  //     productImageUrl: doc.data().productImageUrl || "",
-  //     status: doc.data().status || "pending"
-  //   } as Product));
-  // }, []);
-
-  // // Check if all store orders are packaged
-  // const allStoresPackaged = useCallback((storeStatuses: Record<string, ProductStatus>) => {
-  //   return Object.values(storeStatuses).every(status => status === "packaged");
-  // }, []);
-
-  // // Fetch all orders and separate them by assignment status
-  // const fetchOrders = useCallback(async (storeData: Record<string, string>) => {
-  //   const ordersRef = collection(db, "Orders");
+//     // Query for all orders that might need delivery assignment
+//     const potentialOrdersQuery = query(
+//       ordersRef,
+//       orderBy("createdAt", "desc")
+//     );
     
-  //   // Query for all orders that might need delivery assignment
-  //   const potentialOrdersQuery = query(
-  //     ordersRef,
-  //     orderBy("createdAt", "desc")
-  //   );
-    
-  //   const unsubscribe = onSnapshot(potentialOrdersQuery, async (snapshot) => {
-  //     const unassigned: Order[] = [];
-  //     const assigned: Order[] = [];
+//     const unsubscribe = onSnapshot(potentialOrdersQuery, async (snapshot) => {
+//       const unassigned: Order[] = [];
+//       const assigned: Order[] = [];
       
-  //     for (const doc of snapshot.docs) {
-  //       const data = doc.data();
-  //       const storeOrders = await fetchStoreOrders(doc.id);
+//       for (const doc of snapshot.docs) {
+//         const data = doc.data();
+//         const storeOrders = await fetchStoreOrders(doc.id);
         
-  //       // Get products from all store orders
-  //       const productsPromises = storeOrders.map(storeOrder => 
-  //         fetchProductsForOrder(doc.id, storeOrder.id)
-  //       );
-  //       const productsArrays = await Promise.all(productsPromises);
-  //       const products = productsArrays.flat();
+//         // Skip if order is rejected
+//         if (data.status === "rejected") continue;
         
-  //       const order: Order = {
-  //         id: doc.id,
-  //         createdAt: data.createdAt?.toDate() || new Date(),
-  //         status: data.status || "pending",
-  //         userId: data.userId || "Unknown User",
-  //         location: {
-  //           address: data.location?.address || "Unknown Location",
-  //           latitude: data.location?.latitude || 0,
-  //           longitude: data.location?.longitude || 0
-  //         },
-  //         storeStatuses: data.storeStatuses || {},
-  //         storeOrders,
-  //         products,
-  //         deliveryAgentId: data.deliveryAgentId || null,
-  //         deliveryAgentName: data.deliveryAgentName || null,
-  //         storeName: storeData[data.storeId] || "Unknown Store"
-  //       };
+//         // Check store statuses
+//         const storeStatuses = data.storeStatuses || {};
+//         // const allStoresDecided = Object.values(storeStatuses).every(
+//         //   status => status === "accepted" || status === "rejected"
+//         // );
+//         const hasAcceptedOrReviewedStatus = data.status === "accepted" || data.status === "reviewed";
 
-  //       // Check if order is ready for delivery assignment
-  //       if (allStoresPackaged(data.storeStatuses || {})) {
-  //         if (!data.deliveryAgentId) {
-  //           unassigned.push(order);
-  //         } else {
-  //           assigned.push(order);
-  //         }
-  //       }
-  //     }
-
-  //     setUnassignedOrders(unassigned.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
-  //     setAssignedOrders(assigned.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
-  //     setIsLoading(false);
-  //   });
+// // And then use this condition:
+//         if (!hasAcceptedOrReviewedStatus) continue;
+//         // Skip if not all stores have decided (accepted/rejected)
+//         // if (!allStoresDecided) continue;
+        
+//         // Get products from all store orders
+//         const productsPromises = storeOrders.map(storeOrder => 
+//           fetchProductsForOrder(doc.id, storeOrder.id)
+//         );
+//         const productsArrays = await Promise.all(productsPromises);
+//         const products = productsArrays.flat();
+        
+//         const order: Order = {
+//           id: doc.id,
+//           createdAt: data.createdAt?.toDate() || new Date(),
+//           status: data.status || "pending",
+//           userId: data.userId || "Unknown User",
+//           location: {
+//             address: data.location?.address || "Unknown Location",
+//             latitude: data.location?.latitude || 0,
+//             longitude: data.location?.longitude || 0
+//           },
+//           storeStatuses,
+//           storeOrders,
+//           products,
+//           deliveryAgentId: data.deliveryAgentId || null,
+//           deliveryAgentName: data.deliveryAgentName || null,
+//           storeName: storeData[data.storeId] || "Unknown Store"
+//         };
+  
+//         // Categorize as unassigned or assigned
+//         if (!data.deliveryAgentId) {
+//           unassigned.push(order);
+//         } else {
+//           assigned.push(order);
+//         }
+//       }
+  
+//       setUnassignedOrders(unassigned.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+//       setAssignedOrders(assigned.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+//       setIsLoading(false);
+//     });
     
-  //   return unsubscribe;
-  // }, [fetchStoreOrders, fetchProductsForOrder, allStoresPackaged]);
+//     return unsubscribe;
+//   }, [fetchStoreOrders, fetchProductsForOrder]);
+
+
+
 
   useEffect(() => {
     const loadData = async () => {
@@ -1759,26 +1735,49 @@ const fetchProductsForOrder = useCallback(async (orderId: string, storeOrderId: 
     loadData();
   }, [fetchStoreNames, fetchOrders, fetchDeliveryAgents]);
 
-  const assignDeliveryAgent = useCallback(async (orderId: string) => {
-    if (!selectedAgent) return;
-    
-    try {
-      const orderRef = doc(db, "Orders", orderId);
-      const agentRef = doc(db, "agents", selectedAgent);
-      
-      const agentSnap = await getDoc(agentRef);
-      if (!agentSnap.exists()) throw new Error("Agent not found");
-      
-      const agentData = agentSnap.data();
-      const agentName = agentData.agentName;
+
+// Update assignDeliveryAgent function
+const assignDeliveryAgent = useCallback(async (orderId: string) => {
+  if (!selectedAgent) return;
   
-      // Update Firestore
-      await updateDoc(orderRef, { 
-        deliveryAgentId: selectedAgent,
-        deliveryAgentName: agentName,
-        status: "onway",
-        onwayAt: new Date()
-      });
+  try {
+    const orderRef = doc(db, "Orders", orderId);
+    const agentRef = doc(db, "agents", selectedAgent);
+    
+    const agentSnap = await getDoc(agentRef);
+    if (!agentSnap.exists()) throw new Error("Agent not found");
+    
+    const agentData = agentSnap.data();
+    const agentName = agentData.agentName;
+
+    // Update Firestore with assigned status
+    await updateDoc(orderRef, { 
+      deliveryAgentId: selectedAgent,
+      deliveryAgentName: agentName,
+      status: "assigned", // Changed from "onway" to "assigned"
+      assignedAt: new Date()
+    });
+
+  // const assignDeliveryAgent = useCallback(async (orderId: string) => {
+  //   if (!selectedAgent) return;
+    
+  //   try {
+  //     const orderRef = doc(db, "Orders", orderId);
+  //     const agentRef = doc(db, "agents", selectedAgent);
+      
+  //     const agentSnap = await getDoc(agentRef);
+  //     if (!agentSnap.exists()) throw new Error("Agent not found");
+      
+  //     const agentData = agentSnap.data();
+  //     const agentName = agentData.agentName;
+  
+  //     // Update Firestore
+  //     await updateDoc(orderRef, { 
+  //       deliveryAgentId: selectedAgent,
+  //       deliveryAgentName: agentName,
+  //       status: "onway",
+  //       onwayAt: new Date()
+  //     });
   
       // Remove from unassigned orders locally
       setUnassignedOrders(prev => prev.filter(order => order.id !== orderId));
@@ -1790,7 +1789,7 @@ const fetchProductsForOrder = useCallback(async (orderId: string, storeOrderId: 
           ...updatedOrder,
           deliveryAgentId: selectedAgent,
           deliveryAgentName: agentName,
-          status: "onway" as ProductStatus // Explicitly type the status
+          status: "assigned" as ProductStatus // Explicitly type the status
         };
         setAssignedOrders(prev => [newAssignedOrder, ...prev]);
       }
@@ -1862,7 +1861,7 @@ const fetchProductsForOrder = useCallback(async (orderId: string, storeOrderId: 
       case "pending": return "bg-yellow-100 text-yellow-800";
       case "accepted": return "bg-blue-100 text-blue-800";
       case "rejected": return "bg-red-100 text-red-800";
-      case "packaged": return "bg-indigo-100 text-indigo-800";
+      case "picked": return "bg-indigo-100 text-indigo-800";
       case "onway": return "bg-purple-100 text-purple-800";
       case "delivered": return "bg-green-100 text-green-800";
       default: return "bg-gray-100 text-gray-800";
@@ -1873,7 +1872,7 @@ const fetchProductsForOrder = useCallback(async (orderId: string, storeOrderId: 
     switch (status) {
       case "pending": return <ClockIcon className="w-4 h-4" />;
       case "accepted": return <CheckCircleIcon className="w-4 h-4" />;
-      case "packaged": return <PackageIcon className="w-4 h-4" />;
+      case "picked": return <PackageIcon className="w-4 h-4" />;
       case "onway": return <TruckIcon className="w-4 h-4" />;
       case "delivered": return <CheckCircleIcon className="w-4 h-4" />;
       default: return <ClockIcon className="w-4 h-4" />;
@@ -1884,7 +1883,7 @@ const fetchProductsForOrder = useCallback(async (orderId: string, storeOrderId: 
     <div key={order.id} className="bg-white shadow-lg rounded-xl p-6 border">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="flex items-center mb-2">
+          {/* <div className="flex items-center mb-2">
             <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full mr-2 ${getStatusBadge(order.status)}`}>
               {getStatusIcon(order.status)}
               <span className="ml-1">{order.status.toUpperCase()}</span>
@@ -1894,7 +1893,21 @@ const fetchProductsForOrder = useCallback(async (orderId: string, storeOrderId: 
                 Ready for Delivery
               </span>
             )}
-          </div>
+          </div> */}
+          <div className="flex items-center mb-2">
+  <span
+    className={`inline-flex items-center text-xs font-medium px-4 py-3  rounded-full mr-2 ${getStatusBadge(order.status)}`}
+  >
+    {getStatusIcon(order.status)}
+    <span className="ml-1">{order.status.toUpperCase()}</span>
+  </span>
+  {isAssignable && (
+    <span className="bg-green-100 text-green-800 text-xs  font-medium px-4 py-3 last:rounded-full">
+      Ready for Delivery
+    </span>
+  )}
+</div>
+
           
           <h3 className="text-xl font-semibold">Order #{order.id.substring(0, 8)}</h3>
           

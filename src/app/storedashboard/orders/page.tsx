@@ -1,434 +1,4 @@
 
-// "use client";
-// import { db } from "../../lib/firebase";
-// import { collection, query, where, onSnapshot, updateDoc, doc, getDoc, getDocs } from "firebase/firestore";
-// import { useState, useEffect, useCallback } from "react";
-// import { getAuth, onAuthStateChanged } from "firebase/auth";
-// import { CheckCircleIcon, ClockIcon, XCircleIcon, QrCodeIcon } from "lucide-react";
-// // import  from "qrcode.react";
-// // import QRCode from "react-qr-code";
-// import {QRCodeSVG} from 'qrcode.react';
-// type Product = {
-//   id: string;
-//   name: string;
-//   price: number;
-//   quantity: number;
-//   productImageUrl: string;
-//   stock: number;
-// };
-
-// type Order = {
-//   id: string;
-//   createdAt: Date;
-//   status: string;
-//   userId: string;
-//   location: string;
-//   storeId: string;
-//   products: Product[];
-// };
-
-// const Orders: React.FC = () => {
-//   const [orders, setOrders] = useState<Order[]>([]);
-//   const [storeId, setStoreId] = useState<string | null>(null);
-//   const [locationCache, setLocationCache] = useState<Record<string, string>>({});
-//   const [processingOrders, setProcessingOrders] = useState<Set<string>>(new Set());
-//   const [showQRCode, setShowQRCode] = useState<Record<string, boolean>>({});
-//   // Add a state to force refresh the UI
-//   const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-//   const getCachedLocation = useCallback(async (lat: number, lon: number) => {
-//     const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
-//     if (locationCache[key]) return locationCache[key];
-    
-//     try {
-//       const response = await fetch(
-//         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
-//       );
-//       const data = await response.json();
-//       const address = data.display_name || "Unknown Location";
-//       setLocationCache(prev => ({ ...prev, [key]: address }));
-//       return address;
-//     } catch (error) {
-//       console.error("Error fetching location:", error);
-//       return "Unknown Location";
-//     }
-//   }, [locationCache]);
-
-//   const fetchStoreId = useCallback(async (userEmail: string) => {
-//     const q = query(collection(db, "stores"), where("email", "==", userEmail));
-//     const querySnapshot = await getDocs(q);
-//     return querySnapshot.docs[0]?.id || null;
-//   }, []);
-
-//   const fetchProductsForOrder = useCallback(async (orderId: string) => {
-//     const productsRef = collection(db, `Orders/${orderId}/products`);
-//     const snapshot = await getDocs(productsRef);
-//     return Promise.all(
-//       snapshot.docs.map(async (doc) => {
-//         const data = doc.data();
-//         return {
-//           id: doc.id,
-//           name: data.name || "Unknown",
-//           price: data.price || 0,
-//           quantity: data.quantity || 0,
-//           productImageUrl: data.productImageUrl || "",
-//           stock: 0 // Will be populated later
-//         };
-//       })
-//     );
-//   }, []);
-
-//   const fetchProductStock = useCallback(async (productId: string) => {
-//     if (!storeId) return 0;
-    
-//     const categoriesRef = collection(db, `stores/${storeId}/categories`);
-//     const categoriesSnapshot = await getDocs(categoriesRef);
-
-//     for (const categoryDoc of categoriesSnapshot.docs) {
-//       const productRef = doc(db, `stores/${storeId}/categories/${categoryDoc.id}/products/${productId}`);
-//       const snapshot = await getDoc(productRef);
-//       if (snapshot.exists()) return snapshot.data().stock || 0;
-//     }
-//     return 0;
-//   }, [storeId]);
-
-//   useEffect(() => {
-//     const auth = getAuth();
-//     return onAuthStateChanged(auth, async (user) => {
-//       if (user?.email) {
-//         const id = await fetchStoreId(user.email);
-//         setStoreId(id);
-//       }
-//     });
-//   }, [fetchStoreId]);
-
-//   // Add refreshTrigger to the dependency array
-//   useEffect(() => {
-//     if (!storeId) return;
-
-//     const ordersQuery = query(collection(db, "Orders"), where("storeId", "==", storeId));
-//     const unsubscribe = onSnapshot(ordersQuery, async (snapshot) => {
-//       const ordersPromises = snapshot.docs.map(async (doc) => {
-//         const data = doc.data();
-//         const products = await fetchProductsForOrder(doc.id);
-        
-//         const stockPromises = products.map(async (product) => ({
-//           ...product,
-//           stock: await fetchProductStock(product.id)
-//         }));
-
-//         const location = data.location
-//           ? await getCachedLocation(data.location.latitude, data.location.longitude)
-//           : "Unknown Location";
-
-//         return {
-//           id: doc.id,
-//           createdAt: data.createdAt?.toDate() || new Date(),
-//           status: data.status || "pending",
-//           userId: data.userId || "Unknown User",
-//           location,
-//           storeId: data.storeId,
-//           products: await Promise.all(stockPromises)
-//         };
-//       });
-
-//       const ordersList = await Promise.all(ordersPromises);
-//       setOrders(ordersList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
-//     });
-
-//     return () => unsubscribe();
-//   }, [storeId, fetchProductsForOrder, fetchProductStock, getCachedLocation, refreshTrigger]);
-
-//   const updateOrderStatus = useCallback(async (orderId: string, status: "accepted" | "rejected") => {
-//     const orderRef = doc(db, "Orders", orderId);
-//     await updateDoc(orderRef, { status,deliveryAgentId:null });
-//   }, []);
-
-//   // Find product document reference across all categories
-//   const findProductDocRef = useCallback(async (productId: string) => {
-//     if (!storeId) return null;
-    
-//     const categoriesRef = collection(db, `stores/${storeId}/categories`);
-//     const categoriesSnapshot = await getDocs(categoriesRef);
-
-//     for (const categoryDoc of categoriesSnapshot.docs) {
-//       const productRef = doc(db, `stores/${storeId}/categories/${categoryDoc.id}/products/${productId}`);
-//       const snapshot = await getDoc(productRef);
-//       if (snapshot.exists()) {
-//         return { 
-//           ref: productRef, 
-//           data: snapshot.data(),
-//           categoryId: categoryDoc.id 
-//         };
-//       }
-//     }
-//     return null;
-//   }, [storeId]);
-
-//   // Update local order data without waiting for Firestore to trigger the listener
-//   const updateLocalOrderStock = useCallback((orderId: string, productId: string, newStock: number) => {
-//     setOrders(currentOrders => 
-//       currentOrders.map(order => {
-//         if (order.id === orderId) {
-//           return {
-//             ...order,
-//             products: order.products.map(product => {
-//               if (product.id === productId) {
-//                 return { ...product, stock: newStock };
-//               }
-//               return product;
-//             })
-//           };
-//         }
-//         return order;
-//       })
-//     );
-//   }, []);
-
-//   // Update local stock for all orders that contain the product
-//   const updateStockForAllOrders = useCallback((productId: string, newStock: number) => {
-//     setOrders(currentOrders => 
-//       currentOrders.map(order => {
-//         return {
-//           ...order,
-//           products: order.products.map(product => {
-//             if (product.id === productId) {
-//               return { ...product, stock: newStock };
-//             }
-//             return product;
-//           })
-//         };
-//       })
-//     );
-//   }, []);
-
-//   const acceptOrder = useCallback(async (order: Order) => {
-//     if (!storeId) return;
-    
-//     // Prevent multiple processing of the same order
-//     if (processingOrders.has(order.id)) return;
-    
-//     try {
-//       setProcessingOrders(prev => new Set(prev).add(order.id));
-      
-//       // First update order status
-//       await updateOrderStatus(order.id, "accepted");
-
-      
-//       // Then process each product one by one
-//       for (const product of order.products) {
-//         // Get the latest stock value directly from Firestore
-//         const productInfo = await findProductDocRef(product.id);
-        
-//         if (productInfo) {
-//           const { ref, data, categoryId } = productInfo;
-//           console.log(`Product ${product.id} in category ${categoryId}:`);
-//           console.log(`- Current stock: ${data.stock || 0}`);
-//           console.log(`- Order quantity: ${product.quantity}`);
-          
-//           // Make sure we're working with numbers
-//           const currentStock = Number(data.stock) || 0;
-//           const orderQuantity = Number(product.quantity);
-          
-//           // Calculate new stock and prevent negative stock
-//           const newStock = Math.max(currentStock - orderQuantity, 0);
-          
-//           console.log(`- New stock after reduction: ${newStock}`);
-          
-//           // Update the stock in Firestore
-//           await updateDoc(ref, { stock: newStock });
-          
-//           // Update local state to reflect the new stock immediately
-//           updateStockForAllOrders(product.id, newStock);
-//         } else {
-//           console.error(`Product ${product.id} not found in any category`);
-//         }
-//       }
-      
-//       // Force a UI refresh after all updates are done
-//       setRefreshTrigger(prev => prev + 1);
-      
-//     } catch (error) {
-//       console.error("Error accepting order:", error);
-//     } finally {
-//       // Remove from processing set when done
-//       setProcessingOrders(prev => {
-//         const newSet = new Set(prev);
-//         newSet.delete(order.id);
-//         return newSet;
-//       });
-//     }
-//   }, [storeId, updateOrderStatus, findProductDocRef, processingOrders, updateStockForAllOrders]);
-
-//   const rejectOrder = useCallback(async (order: Order) => {
-//     if (processingOrders.has(order.id)) return;
-    
-//     try {
-//       setProcessingOrders(prev => new Set(prev).add(order.id));
-//       await updateOrderStatus(order.id, "rejected");
-//     } catch (error) {
-//       console.error("Error rejecting order:", error);
-//     } finally {
-//       setProcessingOrders(prev => {
-//         const newSet = new Set(prev);
-//         newSet.delete(order.id);
-//         return newSet;
-//       });
-//     }
-//   }, [updateOrderStatus, processingOrders]);
-
-//   // Toggle QR code display for an order
-//   const toggleQRCode = useCallback((orderId: string) => {
-//     setShowQRCode(prev => ({
-//       ...prev,
-//       [orderId]: !prev[orderId]
-//     }));
-//   }, []);
-
-//   // // Generate order data for QR code
-//   // const generateOrderQRData = useCallback((order: Order) => {
-//   //   const orderData = {
-//   //     id: order.id,
-//   //     date: order.createdAt.toLocaleString(),
-//   //     location: order.location,
-//   //     // status: order.status,
-//   //     products: order.products.map(product => ({
-//   //       name: product.name,
-//   //       price: product.price,
-//   //       quantity: product.quantity
-//   //     }))
-//   //   };
-//   //   return JSON.stringify(orderData);
-//   // }, []);
-//   // Generate order data for QR code (modified to only include order ID)
-// const generateOrderQRData = useCallback((order: Order) => {
-//   // Return just the order ID as a string
-//   return order.id;
-// }, []);
-
-//   return (
-//     <div className="max-w-6xl mx-auto p-6">
-//       <h2 className="text-4xl font-bold mb-6 text-gray-800">📦 Manage Orders</h2>
-
-//       {orders.length === 0 ? (
-//         <p className="text-center text-gray-500 text-lg">No orders found.</p>
-//       ) : (
-//         <div className="space-y-6">
-//           {orders.map((order) => (
-//             <div key={order.id} className="bg-white shadow-lg rounded-xl p-6 border">
-//               <div className="flex items-center justify-between mb-4">
-//                 <div>
-//                   <h3 className="text-xl font-semibold mb-6">Order ID: {order.id}</h3>
-//                   <p className="text-lg text-gray-800">
-//                     📅 {order.createdAt.toLocaleString()}
-//                   </p>
-//                   <p className="text-lg text-gray-800 mt-5 mb-5">
-//                     📍 {order.location}
-//                   </p>
-//                   <p className="text-m text-gray-800"> UserId: {order.userId}</p>
-//                 </div>
-//                 <div className="flex flex-col items-end gap-3">
-//                   <span
-//                     className={`px-3 py-2 rounded-full text-white text-sm font-medium flex items-center gap-1 ${
-//                       order.status === "pending" ? "bg-yellow-500" :
-                      
-//                       order.status === "accepted" ? "bg-green-500" : "bg-red-500"
-//                     }`}
-//                   >
-//                     {order.status === "pending" && <ClockIcon className="w-4 h-4" />}
-//                     {order.status === "accepted" && <CheckCircleIcon className="w-4 h-4" />}
-//                     {order.status === "rejected" && <XCircleIcon className="w-4 h-4" />}
-//                     {order.status.toUpperCase()}
-//                   </span>
-//                   <button
-//                     onClick={() => toggleQRCode(order.id)}
-//                     className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm"
-//                   >
-//                     <QrCodeIcon className="w-4 h-4" />
-//                     {showQRCode[order.id] ? "Hide QR Code" : "Show QR Code"}
-//                   </button>
-//                 </div>
-//               </div>
-              
-//               {showQRCode[order.id] && (
-//                 <div className="flex justify-center my-6 p-4 bg-white border rounded-lg">
-//                   <div className="text-center">
-//                     <QRCodeSVG
-//                       value={generateOrderQRData(order)}
-//                       size={200}
-//                       level="H"
-//                       includeMargin={true}
-//                       // renderAs="svg"
-//                     />
-//                     <p className="mt-2 text-gray-600 text-sm">Scan to view order details</p>
-//                   </div>
-//                 </div>
-//               )}
-
-//               <div className="border rounded-lg overflow-hidden mt-4">
-//                 <table className="w-full border-collapse">
-//                   <thead className="bg-gray-100 text-gray-700">
-//                     <tr>
-//                       <th className="p-3 text-left">Product</th>
-//                       <th className="p-3 text-left">Price</th>
-//                       <th className="p-3 text-left">Quantity</th>
-//                       <th className="p-3 text-left">Stock</th>
-//                     </tr>
-//                   </thead>
-//                   <tbody>
-//                     {order.products.map((product) => (
-//                       <tr key={product.id} className="border-t">
-//                         <td className="p-3 flex items-center gap-3">
-//                           <img src={product.productImageUrl} alt={product.name} 
-//                                className="w-12 h-12 rounded-md object-cover" />
-//                           <span className="text-gray-800">{product.name}</span>
-//                         </td>
-//                         <td className="p-3 text-gray-700 font-semibold">₹{product.price}</td>
-//                         <td className="p-3 text-gray-700">{product.quantity}</td>
-//                         <td className="p-3 text-gray-500">{product.stock}</td>
-//                       </tr>
-//                     ))}
-//                   </tbody>
-//                 </table>
-//               </div>
-
-//               {order.status === "pending" && (
-//                 <div className="mt-6 flex gap-4">
-//                   <button
-//                     onClick={() => acceptOrder(order)}
-//                     disabled={processingOrders.has(order.id)}
-//                     className={`flex items-center gap-2 ${
-//                       processingOrders.has(order.id) 
-//                         ? "bg-gray-400 cursor-not-allowed" 
-//                         : "bg-green-600 hover:bg-green-700"
-//                     } text-white px-5 py-2 rounded-lg transition-all shadow-md`}
-//                   >
-//                     {processingOrders.has(order.id) ? "Processing..." : "✅ Accept Order"}
-//                   </button>
-//                   <button
-//                     onClick={() => rejectOrder(order)}
-//                     disabled={processingOrders.has(order.id)}
-//                     className={`flex items-center gap-2 ${
-//                       processingOrders.has(order.id) 
-//                         ? "bg-gray-400 cursor-not-allowed" 
-//                         : "bg-red-600 hover:bg-red-700"
-//                     } text-white px-5 py-2 rounded-lg transition-all shadow-md`}
-//                   >
-//                     {processingOrders.has(order.id) ? "Processing..." : "❌ Reject Order"}
-//                   </button>
-//                 </div>
-//               )}
-//             </div>
-//           ))}
-//         </div>
-//       )}
-//     </div>
-//   );
-// };
-
-// export default Orders;
-
-
 "use client";
 import { db } from "../../lib/firebase";
 import { collection, query, where, onSnapshot, updateDoc, doc, getDoc, getDocs } from "firebase/firestore";
@@ -437,7 +7,7 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { CheckCircleIcon, ClockIcon, XCircleIcon, QrCodeIcon, PackageIcon, TruckIcon } from "lucide-react";
 import { QRCodeSVG } from 'qrcode.react';
 
-type ProductStatus = "pending" | "accepted" | "rejected" | "packaged" | "onway" | "delivered";
+type ProductStatus = "pending" | "accepted" | "reviewed" | "rejected" | "picked" | "onway" | "delivered";
 
 type Product = {
   id: string;
@@ -481,6 +51,49 @@ type Order = {
     onway?: Date;
     delivered?: Date;
   };
+};
+
+interface QRModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  qrData: string;
+  orderId: string;
+}
+
+const QRModal: React.FC<QRModalProps> = ({ isOpen, onClose, qrData, orderId }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 max-w-md w-full">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold">Order #{orderId.substring(0, 8)}</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            ✕
+          </button>
+        </div>
+        <div className="flex flex-col items-center">
+          <QRCodeSVG
+            value={qrData}
+            size={256}
+            level="H"
+            includeMargin={true}
+          />
+          <p className="mt-4 text-sm text-gray-600 text-center">
+            Scan this QR code to update product status
+          </p>
+        </div>
+        <div className="mt-6">
+          <button
+            onClick={onClose}
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const OrderShimmer = () => {
@@ -534,14 +147,76 @@ const Orders: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [storeId, setStoreId] = useState<string | null>(null);
   const [processingProducts, setProcessingProducts] = useState<Set<string>>(new Set());
-  const [showQRCode, setShowQRCode] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [qrModalData, setQrModalData] = useState<{
+    isOpen: boolean;
+    orderId: string;
+    qrData: string;
+  }>({
+    isOpen: false,
+    orderId: "",
+    qrData: ""
+  });
 
   const fetchStoreId = useCallback(async (userEmail: string) => {
     const q = query(collection(db, "stores"), where("email", "==", userEmail));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs[0]?.id || null;
   }, []);
+
+  const determineOverallOrderStatus = (storeStatuses: Record<string, ProductStatus>): ProductStatus => {
+    if (!storeStatuses || Object.keys(storeStatuses).length === 0) {
+      return "pending";
+    }
+    
+    const statusValues = Object.values(storeStatuses);
+    
+    if (statusValues.length === 1) {
+      return statusValues[0];
+    }
+    
+    const allAccepted = statusValues.every(status => status === "accepted");
+    const allRejected = statusValues.every(status => status === "rejected");
+    const hasPending = statusValues.some(status => status === "pending");
+    
+    if (allAccepted) return "accepted";
+    if (allRejected) return "rejected";
+    
+    if (!hasPending && statusValues.some(status => status === "accepted") && statusValues.some(status => status === "rejected")) {
+      return "reviewed";
+    }
+    
+    return "pending";
+  };
+
+  const determineOrderStatus = (storeStatuses: { [s: string]: unknown; } | ArrayLike<unknown>) => {
+    if (!storeStatuses || Object.keys(storeStatuses).length === 0) {
+      return "pending";
+    }
+    
+    const statusValues = Object.values(storeStatuses);
+    
+    if (statusValues.length === 1 && statusValues[0] === "rejected") {
+      return "rejected";
+    }
+    
+    if (statusValues.length === 1 && statusValues[0] === "accepted") {
+      return "accepted";
+    }
+    
+    const allAccepted = statusValues.every(status => status === "accepted");
+    const allRejected = statusValues.every(status => status === "rejected");
+    const hasPending = statusValues.some(status => status === "pending");
+    
+    if (allAccepted) return "accepted";
+    if (allRejected) return "rejected";
+    
+    if (!hasPending && statusValues.some(status => status === "accepted") && statusValues.some(status => status === "rejected")) {
+      return "reviewed";
+    }
+    
+    return "pending";
+  };
 
   const fetchStoreOrders = useCallback(async (orderId: string) => {
     const storeOrdersRef = collection(db, `Orders/${orderId}/StoreOrders`);
@@ -577,65 +252,56 @@ const Orders: React.FC = () => {
     } as Product));
   }, []);
 
-
-  // Add this function before the updateProductStatus function
-const checkAndUpdateOrderStatus = useCallback(async (orderId: string) => {
-  if (!storeId) return;
-  
-  try {
-    const order = orders.find(o => o.id === orderId);
-    if (!order) return;
+  const checkAndUpdateOrderStatus = useCallback(async (orderId: string) => {
+    if (!storeId) return;
     
-    // Get the storeOrder for the current store
-    const storeOrder = order.storeOrders.find(so => so.storeId === storeId);
-    if (!storeOrder) return;
-    
-    // Check if all products for this store are rejected
-    const allProductsRejected = order.products.every(p => p.status === "rejected");
-    
-    if (allProductsRejected) {
-      // Update StoreOrder status
-      const storeOrderRef = doc(db, `Orders/${orderId}/StoreOrders/${storeOrder.id}`);
-      await updateDoc(storeOrderRef, { 
-        status: "rejected",
-        rejectedAt: new Date()
-      });
+    try {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
       
-      // Update the main order's storeStatuses
-      const orderRef = doc(db, "Orders", orderId);
-      const orderDoc = await getDoc(orderRef);
+      const storeOrder = order.storeOrders.find(so => so.storeId === storeId);
+      if (!storeOrder) return;
       
-      if (orderDoc.exists()) {
-        const storeStatuses = orderDoc.data().storeStatuses || {};
-        await updateDoc(orderRef, {
-          storeStatuses: {
-            ...storeStatuses,
-            [storeId]: "rejected"
-          }
+      const allProductsRejected = order.products.every(p => p.status === "rejected");
+      
+      if (allProductsRejected) {
+        const storeOrderRef = doc(db, `Orders/${orderId}/StoreOrders/${storeOrder.id}`);
+        await updateDoc(storeOrderRef, { 
+          status: "rejected",
+          rejectedAt: new Date()
         });
-      }
-      
-      // Update local state
-      setOrders(prev => prev.map(o => {
-        if (o.id === orderId) {
-          return {
-            ...o,
-            status: "rejected",
+        
+        const orderRef = doc(db, "Orders", orderId);
+        const orderDoc = await getDoc(orderRef);
+        
+        if (orderDoc.exists()) {
+          const storeStatuses = orderDoc.data().storeStatuses || {};
+          await updateDoc(orderRef, {
             storeStatuses: {
-              ...o.storeStatuses,
+              ...storeStatuses,
               [storeId]: "rejected"
             }
-          };
+          });
         }
-        return o;
-      }));
+        
+        setOrders(prev => prev.map(o => {
+          if (o.id === orderId) {
+            return {
+              ...o,
+              status: "rejected",
+              storeStatuses: {
+                ...o.storeStatuses,
+                [storeId]: "rejected"
+              }
+            };
+          }
+          return o;
+        }));
+      }
+    } catch (error) {
+      console.error("Error checking order status:", error);
     }
-  } catch (error) {
-    console.error("Error checking order status:", error);
-  }
-}, [storeId, orders]);
-
-
+  }, [storeId, orders]);
 
   const fetchProductStock = useCallback(async (productId: string) => {
     if (!storeId) return 0;
@@ -706,72 +372,6 @@ const checkAndUpdateOrderStatus = useCallback(async (orderId: string) => {
     return () => unsubscribe();
   }, [storeId, fetchStoreOrders, fetchProductsForOrder, fetchProductStock]);
 
-
-  // const updateProductStatus = useCallback(async (orderId: string, productId: string, status: ProductStatus, reason?: string) => {
-  //   if (!storeId) return;
-    
-  //   try {
-  //     setProcessingProducts(prev => new Set(prev).add(productId));
-      
-  //     const order = orders.find(o => o.id === orderId);
-  //     if (!order) return;
-
-
-  //     const storeOrder = order.storeOrders.find(so => so.storeId === storeId);
-  //     if (!storeOrder) return;
-
-  //     const productRef = doc(db, `Orders/${orderId}/StoreOrders/${storeOrder.id}/products`, productId);
-  //     await updateDoc(productRef, { 
-  //       status,
-  //       ...(reason && { rejectionReason: reason }),
-  //       ...(status === "rejected" && { updatedPrice: null })
-  //     });
-
-  //     // Update local state
-  //     setOrders(prev => prev.map(o => {
-  //       if (o.id === orderId) {
-  //         return {
-  //           ...o,
-  //           products: o.products.map(p => {
-  //             if (p.id === productId) {
-  //               return { 
-  //                 ...p, 
-  //                 status,
-  //                 rejectionReason: reason,
-  //                 ...(status === "rejected" && { updatedPrice: undefined })
-  //               };
-  //             }
-  //             return p;
-  //           })
-  //         };
-  //       }
-  //       return o;
-  //     }));
-
-  //     // Update stock if product is accepted
-  //     if (status === "accepted") {
-  //       const productInfo = await findProductDocRef(productId);
-  //       if (productInfo) {
-  //         const currentStock = Number(productInfo.data.stock) || 0;
-  //         const orderQuantity = Number(order.products.find(p => p.id === productId)?.quantity || 0);
-  //         const newStock = Math.max(currentStock - orderQuantity, 0);
-          
-  //         await updateDoc(productInfo.ref, { stock: newStock });
-  //         updateStockForAllOrders(productId, newStock);
-  //       }
-  //     }
-
-  //   } catch (error) {
-  //     console.error("Error updating product status:", error);
-  //   } finally {
-  //     setProcessingProducts(prev => {
-  //       const newSet = new Set(prev);
-  //       newSet.delete(productId);
-  //       return newSet;
-  //     });
-  //   }
-  // }, [storeId, orders]);
-
   const findProductDocRef = useCallback(async (productId: string) => {
     if (!storeId) return null;
     
@@ -800,39 +400,58 @@ const checkAndUpdateOrderStatus = useCallback(async (orderId: string) => {
       )
     })));
   }, []);
-
-  const getStatusIcon = (status: ProductStatus) => {
-    switch (status) {
-      case "pending": return <ClockIcon className="w-4 h-4" />;
-      case "accepted": return <CheckCircleIcon className="w-4 h-4" />;
-      case "rejected": return <XCircleIcon className="w-4 h-4" />;
-      case "packaged": return <PackageIcon className="w-4 h-4" />;
-      case "onway": return <TruckIcon className="w-4 h-4" />;
-      case "delivered": return <CheckCircleIcon className="w-4 h-4" />;
-      default: return <ClockIcon className="w-4 h-4" />;
+  
+  const updateOrderBasedOnStoreStatuses = async (orderId: string) => {
+    const orderRef = doc(db, "Orders", orderId);
+    const orderDoc = await getDoc(orderRef);
+    
+    if (orderDoc.exists()) {
+      const storeStatuses = orderDoc.data().storeStatuses || {};
+      const updatedStatus = determineOrderStatus(storeStatuses);
+      
+      await updateDoc(orderRef, {
+        status: updatedStatus,
+        ...(updatedStatus === "accepted" && { acceptedAt: new Date() }),
+        ...(updatedStatus === "rejected" && { rejectedAt: new Date() }),
+        ...(updatedStatus === "reviewed" && { reviewedAt: new Date() })
+      });
+      
+      setOrders(prev => prev.map(o => {
+        if (o.id === orderId) {
+          return {
+            ...o,
+            status: updatedStatus
+          };
+        }
+        return o;
+      }));
+      
+      return updatedStatus;
     }
+    
+    return null;
   };
 
-  const getStatusColor = (status: ProductStatus) => {
-    switch (status) {
-      case "pending": return "bg-yellow-100 text-yellow-800";
-      case "accepted": return "bg-green-100 text-green-800";
-      case "rejected": return "bg-red-100 text-red-800";
-      case "packaged": return "bg-blue-100 text-blue-800";
-      case "onway": return "bg-purple-100 text-purple-800";
-      case "delivered": return "bg-emerald-100 text-emerald-800";
-      default: return "bg-gray-100 text-gray-800";
+  const updateOrderStatus = async (orderId:string, storeStatuses: ArrayLike<unknown> | { [s: string]: unknown; }) => {
+    try {
+      const newStatus = determineOrderStatus(storeStatuses);
+      const orderRef = doc(db, "Orders", orderId);
+      
+      await updateDoc(orderRef, {
+        status: newStatus,
+        ...(newStatus === "accepted" && { acceptedAt: new Date() }),
+        ...(newStatus === "rejected" && { rejectedAt: new Date() }),
+        ...(newStatus === "reviewed" && { reviewedAt: new Date() })
+      });
+      
+      console.log(`Order ${orderId} status updated to: ${newStatus}`);
+      return newStatus;
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      throw error;
     }
   };
-
-  const generateProductQRData = useCallback((orderId: string, productId: string) => {
-    return JSON.stringify({ orderId, productId, action: "updateStatus" });
-  }, []);
-
-  const toggleQRCode = useCallback((orderId: string) => {
-    setShowQRCode(prev => ({ ...prev, [orderId]: !prev[orderId] }));
-  }, []);
-
+ 
   const updateProductStatus = useCallback(async (orderId: string, productId: string, status: ProductStatus, reason?: string) => {
     if (!storeId) return;
     
@@ -841,39 +460,89 @@ const checkAndUpdateOrderStatus = useCallback(async (orderId: string) => {
       
       const order = orders.find(o => o.id === orderId);
       if (!order) return;
-  
+
       const storeOrder = order.storeOrders.find(so => so.storeId === storeId);
       if (!storeOrder) return;
-  
+
       const productRef = doc(db, `Orders/${orderId}/StoreOrders/${storeOrder.id}/products`, productId);
       await updateDoc(productRef, { 
         status,
         ...(reason && { rejectionReason: reason }),
         ...(status === "rejected" && { updatedPrice: null })
       });
-  
-      // Update local state
-      setOrders(prev => prev.map(o => {
-        if (o.id === orderId) {
-          return {
-            ...o,
-            products: o.products.map(p => {
-              if (p.id === productId) {
-                return { 
-                  ...p, 
-                  status,
-                  rejectionReason: reason,
-                  ...(status === "rejected" && { updatedPrice: undefined })
-                };
-              }
-              return p;
-            })
+
+      const updatedProducts = order.products.map(p => {
+        if (p.id === productId) {
+          return { 
+            ...p, 
+            status,
+            rejectionReason: reason,
+            ...(status === "rejected" && { updatedPrice: undefined })
           };
         }
-        return o;
-      }));
-  
-      // Update stock if product is accepted
+        return p;
+      });
+
+      const allProductsForStore = updatedProducts;
+      const allAccepted = allProductsForStore.every(p => p.status === "accepted");
+      const allRejected = allProductsForStore.every(p => p.status === "rejected");
+      const hasPending = allProductsForStore.some(p => p.status === "pending");
+      
+      let storeOrderStatus: ProductStatus;
+      if (allAccepted) {
+        storeOrderStatus = "accepted";
+      } else if (allRejected) {
+        storeOrderStatus = "rejected";
+      } else if (!hasPending && allProductsForStore.some(p => p.status === "accepted") && allProductsForStore.some(p => p.status === "rejected")) {
+        storeOrderStatus = "reviewed";
+      } else {
+        storeOrderStatus = "pending";
+      }
+      
+      const storeOrderRef = doc(db, `Orders/${orderId}/StoreOrders/${storeOrder.id}`);
+      await updateDoc(storeOrderRef, { 
+        status: storeOrderStatus,
+        ...(storeOrderStatus === "accepted" && { acceptedAt: new Date() }),
+        ...(storeOrderStatus === "rejected" && { rejectedAt: new Date() }),
+        ...(storeOrderStatus === "reviewed" && { reviewedAt: new Date() })
+      });
+
+      const orderRef = doc(db, "Orders", orderId);
+      const orderDoc = await getDoc(orderRef);
+      
+      if (orderDoc.exists()) {
+        const currentStoreStatuses = orderDoc.data().storeStatuses || {};
+        const updatedStoreStatuses = {
+          ...currentStoreStatuses,
+          [storeId]: storeOrderStatus
+        };
+        
+        await updateDoc(orderRef, {
+          storeStatuses: updatedStoreStatuses
+        });
+        
+        const overallStatus = determineOverallOrderStatus(updatedStoreStatuses);
+        
+        await updateDoc(orderRef, {
+          status: overallStatus,
+          ...(overallStatus === "accepted" && { acceptedAt: new Date() }),
+          ...(overallStatus === "rejected" && { rejectedAt: new Date() }),
+          ...(overallStatus === "reviewed" && { reviewedAt: new Date() })
+        });
+        
+        setOrders(prev => prev.map(o => {
+          if (o.id === orderId) {
+            return {
+              ...o,
+              products: updatedProducts,
+              status: storeOrderStatus,
+              storeStatuses: updatedStoreStatuses
+            };
+          }
+          return o;
+        }));
+      }
+      
       if (status === "accepted") {
         const productInfo = await findProductDocRef(productId);
         if (productInfo) {
@@ -885,12 +554,7 @@ const checkAndUpdateOrderStatus = useCallback(async (orderId: string) => {
           updateStockForAllOrders(productId, newStock);
         }
       }
-  
-      // Check if all products are rejected and update order status if needed
-      if (status === "rejected") {
-        await checkAndUpdateOrderStatus(orderId);
-      }
-  
+
     } catch (error) {
       console.error("Error updating product status:", error);
     } finally {
@@ -900,7 +564,59 @@ const checkAndUpdateOrderStatus = useCallback(async (orderId: string) => {
         return newSet;
       });
     }
-  }, [storeId, orders, checkAndUpdateOrderStatus, findProductDocRef, updateStockForAllOrders]);
+  }, [storeId, orders, findProductDocRef, updateStockForAllOrders]);
+
+  const getStatusIcon = (status: ProductStatus) => {
+    switch (status) {
+      case "pending": return <ClockIcon className="w-4 h-4" />;
+      case "accepted": return <CheckCircleIcon className="w-4 h-4" />;
+      case "rejected": return <XCircleIcon className="w-4 h-4" />;
+      case "picked": return <PackageIcon className="w-4 h-4" />;
+      case "onway": return <TruckIcon className="w-4 h-4" />;
+      case "delivered": return <CheckCircleIcon className="w-4 h-4" />;
+      default: return <ClockIcon className="w-4 h-4" />;
+    }
+  };
+
+  const getStatusColor = (status: ProductStatus) => {
+    switch (status) {
+      case "pending": return "bg-yellow-100 text-yellow-800";
+      case "accepted": return "bg-green-100 text-green-800";
+      case "rejected": return "bg-red-100 text-red-800";
+      case "picked": return "bg-blue-100 text-blue-800";
+      case "onway": return "bg-purple-100 text-purple-800";
+      case "delivered": return "bg-emerald-100 text-emerald-800";
+      default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const toggleQRCode = useCallback((orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order || !storeId) return;
+
+    const qrData = JSON.stringify({
+      orderId,
+      storeId,
+      productIds: order.products.map(p => p.id),
+      action: "updateStatus"
+    });
+
+    setQrModalData({
+      isOpen: true,
+      orderId,
+      qrData
+    });
+  }, [orders, storeId]);
+
+  const closeQRModal = useCallback(() => {
+    setQrModalData(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const isAllProductsReviewed = (order: { products: any[]; }) => {
+    return order.products.every((product) => product.status !== "pending");
+  };
+  
+  
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -931,12 +647,15 @@ const checkAndUpdateOrderStatus = useCallback(async (orderId: string) => {
                   className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm"
                 >
                   <QrCodeIcon className="w-4 h-4" />
-                  {showQRCode[order.id] ? "Hide QR" : "Show QR"}
+                  Show QR
                 </button>
               </div>
 
               <div className="border rounded-lg overflow-hidden mt-4">
                 <table className="w-full border-collapse">
+
+{/* 
+
                   <thead className="bg-gray-100 text-gray-700">
                     <tr>
                       <th className="p-3 text-left">Product</th>
@@ -945,7 +664,6 @@ const checkAndUpdateOrderStatus = useCallback(async (orderId: string) => {
                       <th className="p-3 text-left">Stock</th>
                       <th className="p-3 text-left">Status</th>
                       <th className="p-3 text-left">Actions</th>
-                      {showQRCode[order.id] && <th className="p-3 text-left">QR</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -1015,25 +733,104 @@ const checkAndUpdateOrderStatus = useCallback(async (orderId: string) => {
                             </div>
                           )}
                         </td>
-                        {showQRCode[order.id] && (
-                          <td className="p-3">
-                            <QRCodeSVG
-                              value={generateProductQRData(order.id, product.id)}
-                              size={60}
-                              level="H"
-                              includeMargin={true}
-                            />
-                          </td>
-                        )}
                       </tr>
                     ))}
-                  </tbody>
+                  </tbody> */}
+                  <thead className="bg-gray-100 text-gray-700">
+  <tr>
+    <th className="p-3 text-left">Product</th>
+    <th className="p-3 text-left">Price</th>
+    <th className="p-3 text-left">Qty</th>
+    <th className="p-3 text-left">Stock</th>
+    <th className="p-3 text-left">Status</th>
+    {!isAllProductsReviewed(order) && <th className="p-3 text-left">Actions</th>}
+  </tr>
+</thead>
+<tbody>
+  {order.products.map((product) => (
+    <tr key={product.id} className={`border-t ${product.status === "rejected" ? "bg-red-50" : ""}`}>
+      <td className="p-3 flex items-center gap-3">
+        <img 
+          src={product.productImageUrl} 
+          alt={product.name} 
+          className="w-12 h-12 rounded-md object-cover" 
+        />
+        <span className={`${product.status === "rejected" ? "line-through text-red-500" : ""}`}>
+          {product.name}
+        </span>
+      </td>
+      <td className="p-3">
+        {product.status === "rejected" ? (
+          <div className="flex flex-col">
+            <span className="line-through text-red-500">₹{product.price}</span>
+            {product.updatedPrice && <span className="text-green-600">₹{product.updatedPrice}</span>}
+          </div>
+        ) : (
+          <span>₹{product.price}</span>
+        )}
+      </td>
+      <td className="p-3">{product.quantity}</td>
+      <td className="p-3">{product.stock}</td>
+      <td className="p-3">
+        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${getStatusColor(product.status)}`}>
+          {getStatusIcon(product.status)}
+          {product.status}
+        </span>
+        {product.status === "rejected" && product.rejectionReason && (
+          <p className="text-xs text-red-500 mt-1">{product.rejectionReason}</p>
+        )}
+      </td>
+
+      {!isAllProductsReviewed(order) && (
+        <td className="p-3">
+          {product.status === "pending" && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => updateProductStatus(order.id, product.id, "accepted")}
+                disabled={processingProducts.has(product.id)}
+                className={`px-3 py-1 text-xs rounded-md ${
+                  processingProducts.has(product.id)
+                    ? "bg-gray-300 cursor-not-allowed"
+                    : "bg-green-500 hover:bg-green-600 text-white"
+                }`}
+              >
+                Accept
+              </button>
+              <button
+                onClick={() => {
+                  const reason = prompt("Rejection reason:");
+                  if (reason) updateProductStatus(order.id, product.id, "rejected", reason);
+                }}
+                disabled={processingProducts.has(product.id)}
+                className={`px-3 py-1 text-xs rounded-md ${
+                  processingProducts.has(product.id)
+                    ? "bg-gray-300 cursor-not-allowed"
+                    : "bg-red-500 hover:bg-red-600 text-white"
+                }`}
+              >
+                Reject
+              </button>
+            </div>
+          )}
+        </td>
+      )}
+    </tr>
+  ))}
+</tbody>
+
                 </table>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <QRModal
+        isOpen={qrModalData.isOpen}
+        onClose={closeQRModal}
+        qrData={qrModalData.qrData}
+        orderId={qrModalData.orderId}
+      />
     </div>
   );
 };
