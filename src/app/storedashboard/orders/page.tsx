@@ -219,45 +219,6 @@ const Orders: React.FC = () => {
     return "pending";
 };
 
-  // const determineOrderStatus = (storeStatuses: { [s: string]: unknown; } | ArrayLike<unknown>) => {
-  //   if (!storeStatuses || Object.keys(storeStatuses).length === 0) {
-  //     return "pending";
-  //   }
-    
-  //   const statusValues = Object.values(storeStatuses);
-    
-  //   if (statusValues.length === 1 && statusValues[0] === "rejected") {
-  //     return "rejected";
-  //   }
-    
-  //   if (statusValues.length === 1 && statusValues[0] === "accepted") {
-  //     return "accepted";
-  //   }
-
-  //   if (statusValues.length === 1 && statusValues[0] === "reviewed") {
-  //     return "reviewed";
-  //   }
-    
-  //   const allAccepted = statusValues.every(status => status === "accepted");
-  //   const allRejected = statusValues.every(status => status === "rejected");
-  //   const allReviewed = statusValues.every(status => status === "reviewed");
-  //   const hasPending = statusValues.some(status => status === "pending");
-    
-  //   if (allAccepted) return "accepted";
-  //   if (allRejected) return "rejected";
-  //   if (allReviewed) return "reviewed";
-
-    
-  //   if (!hasPending && statusValues.some(status => status === "accepted") && statusValues.some(status => status === "rejected")) {
-  //     return "reviewed";
-  //   }
-  //   if (!hasPending) {
-  //     return "reviewed";
-  // }
-    
-  //   return "pending";
-  // };
-
 
   const fetchStoreOrders = useCallback(async (orderId: string) => {
     const storeOrdersRef = collection(db, `Orders/${orderId}/StoreOrders`);
