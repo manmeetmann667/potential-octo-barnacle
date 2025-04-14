@@ -1,665 +1,766 @@
-// "use client"
-
-// import React, { useEffect, useState } from "react"
-// import { toast } from "react-toastify"
-// import { X } from "lucide-react"
-// import {
-// 	addProductToCategory,
-// 	updateProduct,
-// 	deleteProduct,
-// 	fetchProductsForCategory,
-// } from "../../service/ProductService"
-// import { fetchCategoriesForStore } from "@/app/service/category"
-
-// interface Product {
-// 	id?: string
-// 	catalogueProductName?: string
-// 	productDescription?: string
-// 	productImageUrl?: string
-// 	catalogueCategoryId?: string
-// 	catalogueCategoryName?: string
-// 	stock?: string
-// 	price?: string
-// }
-
-// interface Category {
-// 	catalogueCategoryId: string
-// 	catalogueCategoryName: string
-// }
-
-// export default function ProductsPage() {
-// 	const [products, setProducts] = useState<Product[]>([])
-// 	const [categories, setCategories] = useState<Category[]>([])
-// 	const [isProductModalOpen, setIsProductModalOpen] = useState(false)
-// 	const [storeId, setStoreId] = useState<string | null>(null)
-// 	const [selectedCategoryId, setSelectedCategoryId] = useState<
-// 		string | null
-// 	>(null)
-// 	const [selectedProduct, setSelectedProduct] =
-// 		useState<Product | null>(null)
-
-// 	const [formData, setFormData] = useState({
-// 		catalogueProductName: "",
-// 		productDescription: "",
-// 		productImageUrl: "",
-// 		catalogueCategoryId: "",
-// 		price: "",
-// 		stock: "",
-// 	})
-
-// 	useEffect(() => {
-// 		const storedStoreId = localStorage.getItem("storeId")
-// 		if (storedStoreId) {
-// 			setStoreId(storedStoreId)
-// 		}
-// 	}, [])
-
-// 	useEffect(() => {
-// 		async function fetchData() {
-// 			if (!storeId) return
-
-// 			try {
-// 				const fetchedCategories = await fetchCategoriesForStore(
-// 					storeId
-// 				)
-// 				const formattedCategories =
-// 					fetchedCategories?.map((cat) => ({
-// 						catalogueCategoryId: cat.id,
-// 						catalogueCategoryName:
-// 							(cat as any).catalogueCategoryName ||
-// 							"Unnamed Category",
-// 					})) || []
-
-// 				setCategories(formattedCategories)
-// 				localStorage.setItem(
-// 					"categories",
-// 					JSON.stringify(formattedCategories)
-// 				)
-
-// 				if (formattedCategories.length > 0) {
-// 					setSelectedCategoryId(
-// 						formattedCategories[0].catalogueCategoryId
-// 					)
-// 					fetchProducts(formattedCategories[0].catalogueCategoryId)
-// 				} else {
-// 					setProducts([])
-// 				}
-// 			} catch (error) {
-// 				console.error("Error fetching data:", error)
-// 				toast.error("Failed to fetch data.")
-// 			}
-// 		}
-
-// 		fetchData()
-// 	}, [storeId])
-
-// 	const fetchProducts = async (categoryId: string) => {
-// 		if (!storeId) return
-// 		try {
-// 			const fetchedProducts = await fetchProductsForCategory(
-// 				storeId,
-// 				categoryId
-// 			)
-// 			setProducts(fetchedProducts ?? [])
-// 		} catch (error) {
-// 			toast.error("Failed to fetch products.")
-// 		}
-// 	}
-
-// 	const handleAddProduct = async () => {
-// 		if (
-// 			!storeId ||
-// 			!formData.catalogueProductName.trim() ||
-// 			!formData.catalogueCategoryId ||
-// 			!formData.productDescription ||
-// 			!formData.productImageUrl
-// 		) {
-// 			toast.error(
-// 				"Store ID, product name, description, image URL, and category are required!"
-// 			)
-// 			return
-// 		}
-// 		try {
-// 			const newProduct = {
-// 				...formData,
-// 				catalogueCategoryName: categories.find(
-// 					(cat) =>
-// 						cat.catalogueCategoryId === formData.catalogueCategoryId
-// 				)?.catalogueCategoryName,
-// 			}
-// 			await addProductToCategory(
-// 				storeId,
-// 				formData.catalogueCategoryId,
-// 				newProduct
-// 			)
-// 			toast.success("Product added successfully!")
-// 			setIsProductModalOpen(false)
-
-// 			setFormData({
-// 				catalogueProductName: "",
-// 				productDescription: "",
-// 				productImageUrl: "",
-// 				catalogueCategoryId: "",
-// 				stock: "",
-// 				price: "",
-// 			})
-
-// 			fetchProducts(formData.catalogueCategoryId)
-// 		} catch (error) {
-// 			toast.error("Failed to add product.")
-// 		}
-// 	}
-
-// 	const handleEditProduct = async () => {
-// 		if (!storeId || !selectedCategoryId || !selectedProduct?.id)
-// 			return
-// 		try {
-// 			await updateProduct(
-// 				storeId,
-// 				selectedCategoryId,
-// 				selectedProduct.id,
-// 				formData
-// 			)
-// 			toast.success("Product updated successfully!")
-// 			setIsProductModalOpen(false)
-// 			fetchProducts(selectedCategoryId)
-// 		} catch (error) {
-// 			toast.error("Failed to update product.")
-// 		}
-// 	}
-
-// 	const handleDeleteProduct = async (productId: string) => {
-// 		if (!storeId || !selectedCategoryId) return
-// 		const confirmDelete = window.confirm(
-// 			"Are you sure you want to delete this product?"
-// 		)
-// 		if (!confirmDelete) return
-
-// 		try {
-// 			await deleteProduct(storeId, selectedCategoryId, productId)
-// 			toast.success("Product deleted successfully!")
-// 			fetchProducts(selectedCategoryId)
-// 		} catch (error) {
-// 			toast.error("Failed to delete product.")
-// 		}
-// 	}
-
-// 	const handleCategoryChange = async (categoryId: string) => {
-// 		setSelectedCategoryId(categoryId)
-// 		if (storeId) {
-// 			try {
-// 				const fetchedProducts = await fetchProductsForCategory(
-// 					storeId,
-// 					categoryId
-// 				)
-// 				setProducts(fetchedProducts ?? [])
-// 			} catch (error) {
-// 				console.error("Error fetching products:", error)
-// 				toast.error("Failed to fetch products.")
-// 			}
-// 		}
-// 	}
-
-// 	const openEditModal = (product: Product) => {
-// 		setSelectedProduct(product)
-// 		setFormData({
-// 			catalogueProductName: product.catalogueProductName || "",
-// 			productDescription: product.productDescription || "",
-// 			productImageUrl: product.productImageUrl || "",
-// 			catalogueCategoryId: product.catalogueCategoryId || "",
-// 			stock: product.stock || "",
-// 			price: product.price || "",
-// 		})
-// 		setIsProductModalOpen(true)
-// 	}
 "use client"
-
 import React, { useEffect, useState } from "react"
 import { toast } from "react-toastify"
 import { X } from "lucide-react"
+import * as XLSX from 'xlsx'
+import { faDownload } from '@fortawesome/free-solid-svg-icons';
+
+
+
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-	addProductToCategory,
-	updateProduct,
-	deleteProduct,
-	fetchProductsForCategory,
+  addProductToCategory,
+  updateProduct,
+  deleteProduct,
+  fetchProductsForCategory,
 } from "../../service/ProductService"
 import { fetchCategoriesForStore } from "@/app/service/category"
 
 interface Product {
-	id?: string
-	catalogueProductName?: string
-	productDescription?: string
-	productImageUrl?: string
-	catalogueCategoryId?: string
-	catalogueCategoryName?: string
-	stock?: string
-	price?: string
+  id: string
+  catalogueProductName?: string
+  productDescription?: string
+  productImageUrl?: string
+  catalogueCategoryId?: string
+  catalogueCategoryName?: string
+  stock?: number,
+  price?: string
+  discount?: number
+  finalPrice?: string // Added for storing calculated price
 }
 
 interface Category {
-	catalogueCategoryId: string
-	catalogueCategoryName: string
+  catalogueCategoryId: string
+  catalogueCategoryName: string
 }
 
 export default function ProductsPage() {
-	const [products, setProducts] = useState<Product[]>([])
-	const [categories, setCategories] = useState<Category[]>([])
-	const [isProductModalOpen, setIsProductModalOpen] = useState(false)
-	const [storeId, setStoreId] = useState<string | null>(null)
-	const [selectedCategoryId, setSelectedCategoryId] = useState<
-		string | null
-	>("all") // Set default to "all"
-	const [selectedProduct, setSelectedProduct] =
-		useState<Product | null>(null)
+  const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false)
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false)
+  const [storeId, setStoreId] = useState<string | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>("all")
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [currentDiscount, setCurrentDiscount] = useState<number>(0)
+  const [excelFile, setExcelFile] = useState<File | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-	const [formData, setFormData] = useState({
-		catalogueProductName: "",
-		productDescription: "",
-		productImageUrl: "",
-		catalogueCategoryId: "",
-		price: "",
-		stock: "",
-	})
+  const [formData, setFormData] = useState({
+    catalogueProductName: "",
+    productDescription: "",
+    productImageUrl: "",
+    catalogueCategoryId: "",
+    price: "",
+    stock: 0,
+    discount: 0,
+    finalPrice: ""
+  })
 
-	useEffect(() => {
-		const storedStoreId = localStorage.getItem("storeId")
-		if (storedStoreId) {
-			setStoreId(storedStoreId)
-		}
-	}, [])
+  useEffect(() => {
+    const storedStoreId = localStorage.getItem("storeId")
+    if (storedStoreId) {
+      setStoreId(storedStoreId)
+    }
+  }, [])
 
-	useEffect(() => {
-		async function fetchData() {
-			if (!storeId) return
+  useEffect(() => {
+    async function fetchData() {
+      if (!storeId) return
+      setIsLoading(true)
+      
+      try {
+        const fetchedCategories = await fetchCategoriesForStore(storeId)
+        const formattedCategories = fetchedCategories?.map((cat) => ({
+          catalogueCategoryId: cat.id,
+          catalogueCategoryName: (cat as any).catalogueCategoryName || "Unnamed Category",
+        })) || []
 
-			try {
-				const fetchedCategories = await fetchCategoriesForStore(
-					storeId
-				)
-				const formattedCategories =
-					fetchedCategories?.map((cat) => ({
-						catalogueCategoryId: cat.id,
-						catalogueCategoryName:
-							(cat as any).catalogueCategoryName ||
-							"Unnamed Category",
-					})) || []
+        setCategories(formattedCategories)
+        localStorage.setItem("categories", JSON.stringify(formattedCategories))
+        await fetchAllProducts(formattedCategories)
+      } catch (error) {
+        console.error("Error fetching data:", error)
+        toast.error("Failed to fetch data.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
 
-				setCategories(formattedCategories)
-				localStorage.setItem(
-					"categories",
-					JSON.stringify(formattedCategories)
-				)
+    fetchData()
+  }, [storeId])
 
-				// Fetch all products by default
-				fetchAllProducts(formattedCategories)
-			} catch (error) {
-				console.error("Error fetching data:", error)
-				toast.error("Failed to fetch data.")
-			}
-		}
+  const fetchAllProducts = async (categoriesList: Category[]) => {
+    if (!storeId || categoriesList.length === 0) return
+    setIsLoading(true)
 
-		fetchData()
-	}, [storeId])
+    try {
+      const allProductsPromises = categoriesList.map(category => 
+        fetchProductsForCategory(storeId, category.catalogueCategoryId)
+      )
+      
+      const productsArrays = await Promise.all(allProductsPromises)
+      const allProducts = productsArrays
+        .flat()
+        .filter(products => products !== null && products !== undefined)
+        .map(product => ({
+          ...product,
+          discount: product.discount || 0,
+          finalPrice: calculateFinalPrice(product.price || '0', product.discount || 0)
+        })) as Product[]
+      
+      setProducts(allProducts)
+    } catch (error) {
+      console.error("Error fetching all products:", error)
+      toast.error("Failed to fetch all products.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
-	// New function to fetch all products across categories
-	const fetchAllProducts = async (categoriesList: Category[]) => {
-		if (!storeId || categoriesList.length === 0) return
+  const fetchProducts = async (categoryId: string) => {
+    if (!storeId) return
+    setIsLoading(true)
+    
+    if (categoryId === "all") {
+      await fetchAllProducts(categories)
+      return
+    }
+    
+    try {
+      const fetchedProducts = await fetchProductsForCategory(storeId, categoryId)
+      setProducts((fetchedProducts ?? []).map(product => ({
+        ...product,
+        discount: product.discount || 0,
+        finalPrice: calculateFinalPrice(product.price || '0', product.discount || 0)
+      })))
+    } catch (error) {
+      toast.error("Failed to fetch products.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
-		try {
-			// Fetch products for each category and combine them
-			const allProductsPromises = categoriesList.map(category => 
-				fetchProductsForCategory(storeId, category.catalogueCategoryId)
-			)
-			
-			const productsArrays = await Promise.all(allProductsPromises)
-			
-			// Flatten and filter out any null results
-			const allProducts = productsArrays
-				.flat()
-				.filter(products => products !== null && products !== undefined) as Product[]
-			
-			setProducts(allProducts)
-		} catch (error) {
-			console.error("Error fetching all products:", error)
-			toast.error("Failed to fetch all products.")
-		}
-	}
+  const handleAddProduct = async () => {
+    if (!storeId || !formData.catalogueProductName.trim() || !formData.catalogueCategoryId) {
+      toast.error("Product name and category are required!")
+      return
+    }
+    
+    try {
+      const newProduct = {
+        ...formData,
+        finalPrice: calculateFinalPrice(formData.price || '0', formData.discount || 0),
+        catalogueCategoryName: categories.find(
+          cat => cat.catalogueCategoryId === formData.catalogueCategoryId
+        )?.catalogueCategoryName,
+      }
+      
+      await addProductToCategory(storeId, formData.catalogueCategoryId, newProduct)
+      toast.success("Product added successfully!")
+      setIsProductModalOpen(false)
+      resetFormData()
 
-	const fetchProducts = async (categoryId: string) => {
-		if (!storeId) return
-		
-		// If "all" is selected, fetch all products
-		if (categoryId === "all") {
-			fetchAllProducts(categories)
-			return
-		}
-		
-		try {
-			const fetchedProducts = await fetchProductsForCategory(
-				storeId,
-				categoryId
-			)
-			setProducts(fetchedProducts ?? [])
-		} catch (error) {
-			toast.error("Failed to fetch products.")
-		}
-	}
+      if (selectedCategoryId === "all") {
+        await fetchAllProducts(categories)
+      } else {
+        await fetchProducts(formData.catalogueCategoryId)
+      }
+    } catch (error) {
+      toast.error("Failed to add product.")
+    }
+  }
 
-	const handleAddProduct = async () => {
-		if (
-			!storeId ||
-			!formData.catalogueProductName.trim() ||
-			!formData.catalogueCategoryId ||
-			!formData.productDescription ||
-			!formData.productImageUrl
-		) {
-			toast.error(
-				"Store ID, product name, description, image URL, and category are required!"
-			)
-			return
-		}
-		try {
-			const newProduct = {
-				...formData,
-				catalogueCategoryName: categories.find(
-					(cat) =>
-						cat.catalogueCategoryId === formData.catalogueCategoryId
-				)?.catalogueCategoryName,
-			}
-			await addProductToCategory(
-				storeId,
-				formData.catalogueCategoryId,
-				newProduct
-			)
-			toast.success("Product added successfully!")
-			setIsProductModalOpen(false)
+  const handleEditProduct = async () => {
+    if (!storeId || !selectedProduct?.catalogueCategoryId || !selectedProduct?.id) return
+    
+    try {
+      const updatedProduct = {
+        ...formData,
+        finalPrice: calculateFinalPrice(formData.price || '0', formData.discount || 0)
+      }
+      
+      await updateProduct(
+        storeId,
+        selectedProduct.catalogueCategoryId,
+        selectedProduct.id,
+        updatedProduct
+      )
+      toast.success("Product updated successfully!")
+      setIsProductModalOpen(false)
+      
+      if (selectedCategoryId === "all") {
+        await fetchAllProducts(categories)
+      } else {
+        await fetchProducts(selectedCategoryId!)
+      }
+    } catch (error) {
+      toast.error("Failed to update product.")
+    }
+  }
 
-			setFormData({
-				catalogueProductName: "",
-				productDescription: "",
-				productImageUrl: "",
-				catalogueCategoryId: "",
-				stock: "",
-				price: "",
-			})
+  const handleDeleteProduct = async (productId: string, productCategoryId: string) => {
+    if (!storeId || !productCategoryId) return
+    const confirmDelete = window.confirm("Are you sure you want to delete this product?")
+    if (!confirmDelete) return
 
-			// Refresh products list based on current selection
-			if (selectedCategoryId === "all") {
-				fetchAllProducts(categories)
-			} else {
-				fetchProducts(formData.catalogueCategoryId)
-			}
-		} catch (error) {
-			toast.error("Failed to add product.")
-		}
-	}
+    try {
+      await deleteProduct(storeId, productCategoryId, productId)
+      toast.success("Product deleted successfully!")
+      
+      if (selectedCategoryId === "all") {
+        await fetchAllProducts(categories)
+      } else {
+        await fetchProducts(selectedCategoryId!)
+      }
+    } catch (error) {
+      toast.error("Failed to delete product.")
+    }
+  }
 
-	const handleEditProduct = async () => {
-		if (!storeId || !selectedProduct?.catalogueCategoryId || !selectedProduct?.id)
-			return
-		try {
-			await updateProduct(
-				storeId,
-				selectedProduct.catalogueCategoryId,
-				selectedProduct.id,
-				formData
-			)
-			toast.success("Product updated successfully!")
-			setIsProductModalOpen(false)
-			
-			// Refresh products based on current view
-			if (selectedCategoryId === "all") {
-				fetchAllProducts(categories)
-			} else {
-				fetchProducts(selectedCategoryId!)
-			}
-		} catch (error) {
-			toast.error("Failed to update product.")
-		}
-	}
+  const handleCategoryChange = async (categoryId: string) => {
+    setSelectedCategoryId(categoryId)
+    await fetchProducts(categoryId)
+  }
 
-	const handleDeleteProduct = async (productId: string, productCategoryId: string) => {
-		if (!storeId || !productCategoryId) return
-		const confirmDelete = window.confirm(
-			"Are you sure you want to delete this product?"
-		)
-		if (!confirmDelete) return
+  const openEditModal = (product: Product) => {
+    setSelectedProduct(product)
+    setFormData({
+      catalogueProductName: product.catalogueProductName || "",
+      productDescription: product.productDescription || "",
+      productImageUrl: product.productImageUrl || "",
+      catalogueCategoryId: product.catalogueCategoryId || "",
+      stock: product.stock || 0,
+      price: product.price || "",
+      discount: product.discount || 0,
+      finalPrice: product.finalPrice || calculateFinalPrice(product.price || '0', product.discount || 0)
+    })
+    setIsProductModalOpen(true)
+  }
 
-		try {
-			await deleteProduct(storeId, productCategoryId, productId)
-			toast.success("Product deleted successfully!")
-			
-			// Refresh products based on current view
-			if (selectedCategoryId === "all") {
-				fetchAllProducts(categories)
-			} else {
-				fetchProducts(selectedCategoryId!)
-			}
-		} catch (error) {
-			toast.error("Failed to delete product.")
-		}
-	}
+  const openDiscountModal = (product: Product) => {
+    setSelectedProduct(product)
+    setCurrentDiscount(product.discount || 0)
+    setIsDiscountModalOpen(true)
+  }
 
-	const handleCategoryChange = async (categoryId: string) => {
-		setSelectedCategoryId(categoryId)
-		fetchProducts(categoryId)
-	}
+  const handleUpdateDiscount = async () => {
+    if (!selectedProduct || !storeId || !selectedProduct.catalogueCategoryId || !selectedProduct.id) return
+    
+    try {
+      const finalPrice = calculateFinalPrice(selectedProduct.price || '0', currentDiscount)
+      
+      await updateProduct(
+        storeId,
+        selectedProduct.catalogueCategoryId,
+        selectedProduct.id,
+        { 
+          ...selectedProduct, 
+          discount: currentDiscount,
+          finalPrice: finalPrice
+        }
+      )
+      toast.success("Discount updated successfully!")
+      setIsDiscountModalOpen(false)
+      
+      if (selectedCategoryId === "all") {
+        await fetchAllProducts(categories)
+      } else {
+        await fetchProducts(selectedCategoryId!)
+      }
+    } catch (error) {
+      toast.error("Failed to update discount.")
+    }
+  }
 
-	const openEditModal = (product: Product) => {
-		setSelectedProduct(product)
-		setFormData({
-			catalogueProductName: product.catalogueProductName || "",
-			productDescription: product.productDescription || "",
-			productImageUrl: product.productImageUrl || "",
-			catalogueCategoryId: product.catalogueCategoryId || "",
-			stock: product.stock || "",
-			price: product.price || "",
-		})
-		setIsProductModalOpen(true)
-	}
-	
-	return (
-		<div className="p-6">
-			<div className="flex justify-between items-center">
-				<h2 className="font-semibold text-5xl">Manage Products</h2>
-				<button
-					onClick={() => setIsProductModalOpen(true)}
-					className="bg-blue-700 text-white px-6 py-3 rounded-md hover:opacity-75"
-				>
-					+ Add Product
-				</button>
-			</div>
+  const handleRemoveDiscount = async () => {
+    if (!selectedProduct || !storeId || !selectedProduct.catalogueCategoryId || !selectedProduct.id) return
+    
+    try {
+      const finalPrice = calculateFinalPrice(selectedProduct.price || '0', 0)
+      
+      await updateProduct(
+        storeId,
+        selectedProduct.catalogueCategoryId,
+        selectedProduct.id,
+        { 
+          ...selectedProduct, 
+          discount: 0,
+          finalPrice: finalPrice
+        }
+      )
+      toast.success("Discount removed successfully!")
+      setIsDiscountModalOpen(false)
+      setCurrentDiscount(0)
+      
+      if (selectedCategoryId === "all") {
+        await fetchAllProducts(categories)
+      } else {
+        await fetchProducts(selectedCategoryId!)
+      }
+    } catch (error) {
+      toast.error("Failed to remove discount.")
+    }
+  }
 
-			<div className="mt-6">
-				<select
-					value={selectedCategoryId || ""}
-					onChange={(e) => handleCategoryChange(e.target.value)}
-					className="border-2 w-full p-2 rounded-lg mb-2"
-				>
-					<option value="all">All Products</option>
-					{categories.map((category) => (
-						<option
-							key={category.catalogueCategoryId}
-							value={category.catalogueCategoryId}
-						>
-							{category.catalogueCategoryName}
-						</option>
-					))}
-				</select>
-			</div>
+  const resetFormData = () => {
+    setFormData({
+      catalogueProductName: "",
+      productDescription: "",
+      productImageUrl: "",
+      catalogueCategoryId: "",
+      stock: 0,
+      price: "",
+      discount: 0,
+      finalPrice: ""
+    })
+  }
 
-			<div className="bg-white rounded-lg p-5 mt-4">
-				<h3 className="text-3xl font-semibold mb-4">Products</h3>
-				<table className="w-full border-collapse">
-					<thead>
-						<tr className="bg-gray-100">
-							<th className="px-4 py-2">Product Name</th>
-							<th className="px-4 py-2">Description</th>
-							<th className="px-4 py-2">Image</th>
-							<th className="px-4 py-2">Category Name</th>
-							<th className="px-4 py-2">Stock</th>
-							<th className="px-4 py-2">Price</th>
-							<th className="px-4 py-2">Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-						{products.length > 0 ? (
-							products.map((product) => (
-								<tr key={product.id} className="border-t text-center">
-									<td className="px-4 py-2">
-										{product.catalogueProductName}
-									</td>
-									<td className="px-4 py-2">
-										{product.productDescription}
-									</td>
-									<td className="px-4 py-2">
-										<img
-											src={product.productImageUrl}
-											alt={product.catalogueProductName}
-											className="h-12 w-12 rounded-lg"
-										/>
-									</td>
-									<td className="px-4 py-2">
-										{product.catalogueCategoryName}
-									</td>
-									<td className="px-4 py-2">{product.stock}</td>
-									<td className="px-4 py-2">{product.price}</td>
-									<td className="flex items-center gap-5 py-6">
-										<button
-											onClick={() => openEditModal(product)}
-											className="bg-blue-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
-										>
-											Edit
-										</button>
+  const downloadExcelTemplate = () => {
+    const template = [
+      {
+        'Product Name': '',
+        'Description': '',
+        'Image URL': '',
+        'Category ID': '',
+        'Stock': 0,
+        'Price': '',
+        'Discount (%)': 0
+      }
+    ]
+    
+    const ws = XLSX.utils.json_to_sheet(template)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "ProductsTemplate")
+    XLSX.writeFile(wb, "Products_Template.xlsx")
+  }
 
-										<button
-											onClick={() => handleDeleteProduct(product.id!, product.catalogueCategoryId!)}
-											className="bg-red-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
-										>
-											Delete
-										</button>
-									</td>
-								</tr>
-							))
-						) : (
-							<tr>
-								<td
-									colSpan={7}
-									className="px-4 py-2 text-center text-gray-500"
-								>
-									No products added yet.
-								</td>
-							</tr>
-						)}
-					</tbody>
-				</table>
-			</div>
+  const handleExcelUpload = async () => {
+    if (!excelFile || !storeId) return
+    
+    try {
+      const data = await excelFile.arrayBuffer()
+      const workbook = XLSX.read(data)
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[]
+      
+      for (const item of jsonData) {
+        const discount = parseFloat(item['Discount (%)']) || 0
+        const price = item['Price']?.toString() || '0'
+        
+        const productData = {
+          catalogueProductName: item['Product Name']?.toString() || '',
+          productDescription: item['Description']?.toString() || '',
+          productImageUrl: item['Image URL']?.toString() || '',
+          catalogueCategoryId: item['Category ID']?.toString() || '',
+          stock: item['Stock'] || 0,
+          price: price,
+          discount: discount,
+          finalPrice: calculateFinalPrice(price, discount)
+        }
+        
+        if (!productData.catalogueProductName || !productData.catalogueCategoryId) {
+          toast.warning(`Skipping row - Product Name and Category ID are required`)
+          continue
+        }
+        
+        await addProductToCategory(storeId, productData.catalogueCategoryId, productData)
+      }
+      
+      toast.success("Products imported successfully!")
+      setExcelFile(null)
+      await fetchAllProducts(categories)
+    } catch (error) {
+      console.error("Error importing products:", error)
+      toast.error("Failed to import products. Please check the file format.")
+    }
+  }
 
-			{isProductModalOpen && (
-				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-					<div className="bg-white rounded-lg p-6 w-96">
-						<div className="flex justify-between items-center mb-4">
-							<h2 className="text-2xl font-semibold">
-								Add / Edit Product
-							</h2>
-							<X
-								className="cursor-pointer"
-								onClick={() => setIsProductModalOpen(false)}
-							/>
-						</div>
-						<input
-							type="text"
-							value={formData.catalogueProductName}
-							onChange={(e) =>
-								setFormData({
-									...formData,
-									catalogueProductName: e.target.value,
-								})
-							}
-							placeholder="Product Name"
-							className="border-2 w-full p-2 rounded-lg mb-2"
-						/>
-						<textarea
-							value={formData.productDescription}
-							onChange={(e) =>
-								setFormData({
-									...formData,
-									productDescription: e.target.value,
-								})
-							}
-							placeholder="Product Description"
-							className="border-2 w-full p-2 rounded-lg mb-2"
-						/>
-						<input
-							type="text"
-							value={formData.productImageUrl}
-							onChange={(e) =>
-								setFormData({
-									...formData,
-									productImageUrl: e.target.value,
-								})
-							}
-							placeholder="Product Image URL"
-							className="border-2 w-full p-2 rounded-lg mb-2"
-						/>
-						<input
-							type="text"
-							value={formData.stock}
-							onChange={(e) =>
-								setFormData({
-									...formData,
-									stock: e.target.value,
-								})
-							}
-							placeholder="Stock"
-							className="border-2 w-full p-2 rounded-lg mb-2"
-						/>
-						<input
-							type="text"
-							value={formData.price}
-							onChange={(e) =>
-								setFormData({
-									...formData,
-									price: e.target.value,
-								})
-							}
-							placeholder="Price"
-							className="border-2 w-full p-2 rounded-lg mb-2"
-						/>
-						<select
-							value={formData.catalogueCategoryId}
-							onChange={(e) =>
-								setFormData({
-									...formData,
-									catalogueCategoryId: e.target.value,
-								})
-							}
-							className="border-2 w-full p-2 rounded-lg mb-2"
-						>
-							<option value="">Select Category</option>
-							{categories.map((category) => (
-								<option
-									key={category.catalogueCategoryId}
-									value={category.catalogueCategoryId}
-								>
-									{category.catalogueCategoryName}
-								</option>
-							))}
-						</select>
-						<button
-							onClick={
-								selectedProduct ? handleEditProduct : handleAddProduct
-							}
-							className="w-full bg-indigo-700 text-white py-2 rounded-lg mt-4 hover:opacity-75"
-						>
-							{selectedProduct ? "Update Product" : "Add Product"}
-						</button>
-					</div>
-				</div>
-			)}
-		</div>
-	)
+  const calculateFinalPrice = (price: string, discount: number): string => {
+    const priceNum = parseFloat(price) || 0
+    const discountNum = discount || 0
+    const discountAmount = priceNum * (discountNum / 100)
+    return (priceNum - discountAmount).toFixed(2)
+  }
 
+  // Loading shimmer component
+  const LoadingRow = () => (
+    <tr className="animate-pulse">
+      <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded"></div></td>
+      <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded"></div></td>
+      <td className="px-4 py-3"><div className="h-14 w-14 bg-gray-200 rounded-md"></div></td>
+      <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded"></div></td>
+      <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded"></div></td>
+      <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded"></div></td>
+      <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded"></div></td>
+      <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded"></div></td>
+      <td className="px-4 py-3">
+        <div className="flex gap-2">
+          <div className="h-8 w-12 bg-gray-200 rounded-lg"></div>
+          <div className="h-8 w-12 bg-gray-200 rounded-lg"></div>
+        </div>
+      </td>
+    </tr>
+  )
 
-// 		
+  return (
+    <div className="p-6">
+      <div className="flex justify-between items-center">
+        <h2 className="font-semibold text-5xl">Manage Products</h2>
+        <div className="flex gap-4">
+          <button
+            onClick={() => {
+              const fileInput = document.createElement('input')
+              fileInput.type = 'file'
+              fileInput.accept = '.xlsx,.xls'
+              fileInput.onchange = (e) => {
+                const files = (e.target as HTMLInputElement).files
+                if (files && files[0]) {
+                  setExcelFile(files[0])
+                }
+              }
+              fileInput.click()
+            }}
+            className="bg-green-700 text-white px-4 py-3 rounded-md hover:opacity-75"
+          >
+             Import products from Excel
+          </button>
+          {excelFile && (
+            <button
+              onClick={handleExcelUpload}
+              className="bg-blue-700 text-white px-4 py-3 rounded-md hover:opacity-75"
+            >
+              Upload {excelFile.name}
+            </button>
+          )}
+          <button
+            onClick={() => setIsProductModalOpen(true)}
+            className="bg-blue-700 text-white px-4 py-3 rounded-md hover:opacity-75 "
+          >
+            + Add Product
+          </button>
+          <button
+  onClick={downloadExcelTemplate}
+  className="bg-purple-700 text-center text-white px-6 py-3 rounded-md hover:opacity-75 mr-14 flex items-center gap-2"
+>
+  <FontAwesomeIcon icon={faDownload} />
+  <span>Excel Format</span>
+</button>
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <select
+          value={selectedCategoryId || ""}
+          onChange={(e) => handleCategoryChange(e.target.value)}
+          className="border-2 w-full p-2 rounded-lg mb-2"
+          disabled={isLoading}
+        >
+          <option value="all">All Products</option>
+          {categories.map((category) => (
+            <option
+              key={category.catalogueCategoryId}
+              value={category.catalogueCategoryId}
+            >
+              {category.catalogueCategoryName}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="bg-white rounded-lg p-5 mt-4">
+        <h3 className="text-3xl font-semibold mb-4">Products</h3>
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="px-4 py-2">Product Name</th>
+              <th className="px-4 py-2">Description</th>
+              <th className="px-4 py-2">Image</th>
+              <th className="px-4 py-2">Category Name</th>
+              <th className="px-4 py-2">Stock</th>
+              <th className="px-4 py-2">Actual Price</th>
+              <th className="px-4 py-2">Discount %</th>
+              <th className="px-4 py-2">Final Price</th>
+              <th className="px-4 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <>
+                <LoadingRow />
+                <LoadingRow />
+                <LoadingRow />
+                <LoadingRow />
+                <LoadingRow />
+              </>
+            ) : products.length > 0 ? (
+              products.map((product) => (
+                <tr key={product.id} className="border-b hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">{product.catalogueProductName}</td>
+                  <td className="px-4 py-3">
+                    <div className="max-w-xs truncate" title={product.productDescription}>
+                      {product.productDescription}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-center">
+                      <img
+                        src={product.productImageUrl || 'default.png'}
+                        alt={product.catalogueProductName}
+                        className="h-14 w-14 rounded-md object-cover shadow-sm"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.src = 'default.png'
+                        }}
+                      />
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">{product.catalogueCategoryName}</td>
+                  <td className="px-4 py-3">{product.stock}</td>
+                  <td className="px-4 py-3 font-medium">₹{product.price}</td>
+                  <td className="px-4 py-3">
+                    {product.discount && product.discount !== 0 ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <span className="font-medium">{product.discount}%</span>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => openDiscountModal(product)}
+                            className="bg-yellow-600 text-white px-2 py-1 rounded text-xs hover:opacity-75 cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleRemoveDiscount()}
+                            className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:opacity-75 cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-center">
+                        <button
+                          onClick={() => openDiscountModal(product)}
+                          className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:opacity-75 cursor-pointer"
+                        >
+                          Add Discount
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 font-medium">
+                    ₹{product.finalPrice || calculateFinalPrice(product.price || '0', product.discount || 0)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => openEditModal(product)}
+                        className="bg-blue-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteProduct(product.id!, product.catalogueCategoryId!)}
+                        className="bg-red-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={9} className="px-4 py-6 text-center text-gray-500">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                    </svg>
+                    <span>No products added yet.</span>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {isProductModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 w-96">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold">
+                {selectedProduct ? "Edit Product" : "Add Product"}
+              </h2>
+              <X
+                className="cursor-pointer"
+                onClick={() => {
+                  setIsProductModalOpen(false)
+                  setSelectedProduct(null)
+                  resetFormData()
+                }}
+              />
+            </div>
+            <input
+              type="text"
+              value={formData.catalogueProductName}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  catalogueProductName: e.target.value,
+                })
+              }
+              placeholder="Product Name"
+              className="border-2 w-full p-2 rounded-lg mb-2"
+              required
+            />
+            <textarea
+              value={formData.productDescription}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  productDescription: e.target.value,
+                })
+              }
+              placeholder="Product Description"
+              className="border-2 w-full p-2 rounded-lg mb-2"
+            />
+            <input
+              type="text"
+              value={formData.productImageUrl}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  productImageUrl: e.target.value,
+                })
+              }
+              placeholder="Product Image URL"
+              className="border-2 w-full p-2 rounded-lg mb-2"
+            />
+            <input
+              type="number"
+              value={formData.stock}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  stock: parseInt(e.target.value) || 0,
+                })
+              }
+              placeholder="Stock"
+              className="border-2 w-full p-2 rounded-lg mb-2"
+              min="0"
+            />
+            <input
+              type="number"
+              value={formData.price}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  price: e.target.value,
+                })
+              }
+              placeholder="Price"
+              className="border-2 w-full p-2 rounded-lg mb-2"
+              min="0"
+              step="0.01"
+              required
+            />
+            <input
+              type="number"
+              value={formData.discount}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  discount: parseFloat(e.target.value) || 0,
+                })
+              }
+              placeholder="Discount %"
+              className="border-2 w-full p-2 rounded-lg mb-2"
+              min="0"
+              max="100"
+              step="0.1"
+            />
+            <select
+              value={formData.catalogueCategoryId}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  catalogueCategoryId: e.target.value,
+                })
+              }
+              className="border-2 w-full p-2 rounded-lg mb-2"
+              required
+            >
+              <option value="">Select Category</option>
+              {categories.map((category) => (
+                <option
+                  key={category.catalogueCategoryId}
+                  value={category.catalogueCategoryId}
+                >
+                  {category.catalogueCategoryName}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={selectedProduct ? handleEditProduct : handleAddProduct}
+              className="w-full bg-indigo-700 text-white py-2 rounded-lg mt-4 hover:opacity-75"
+            >
+              {selectedProduct ? "Update Product" : "Add Product"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isDiscountModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 w-96">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold">
+                {selectedProduct?.discount === 0 ? 'Add Discount' : 'Edit Discount'} for {selectedProduct?.catalogueProductName}
+              </h2>
+              <X
+                className="cursor-pointer"
+                onClick={() => setIsDiscountModalOpen(false)}
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block mb-2">Current Price: ₹{selectedProduct?.price}</label>
+              <input
+                type="number"
+                value={currentDiscount}
+                onChange={(e) => setCurrentDiscount(parseFloat(e.target.value) || 0)}
+                placeholder="Discount %"
+                className="border-2 w-full p-2 rounded-lg"
+                min="0"
+                max="100"
+                step="0.1"
+              />
+              {currentDiscount !== 0 && (
+                <div className="mt-2">
+                  <p>Final Price: ₹{calculateFinalPrice(selectedProduct?.price || '0', currentDiscount)}</p>
+                  <p>(Original: ₹{selectedProduct?.price}, Discount: {currentDiscount}%)</p>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleUpdateDiscount}
+                className={`flex-1 ${selectedProduct?.discount === 0 ? 'bg-green-700' : 'bg-blue-700'} text-white py-2 rounded-lg hover:opacity-75`}
+              >
+                {selectedProduct?.discount === 0 ? 'Add Discount' : 'Update Discount'}
+              </button>
+              {selectedProduct?.discount !== 0 && (
+                <button
+                  onClick={handleRemoveDiscount}
+                  className="flex-1 bg-red-700 text-white py-2 rounded-lg hover:opacity-75"
+                >
+                  Remove Discount
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )	
 }

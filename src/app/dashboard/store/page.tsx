@@ -175,19 +175,19 @@ export default function Page() {
 
 	return (
 		<div>
-			<div className="flex justify-between items-center">
-				<h2 className="font-semibold text-5xl">Tables</h2>
-				<div className="flex gap-20 items-center font-semibold">
+			<div className="flex justify-between items-center ">
+				<h2 className="font-semibold text-5xl">Stores</h2>
+				<div className="flex gap-10 items-center font-semibold">
 					<button
 						onClick={() => setIsOpen(true)}
 						className="bg-blue-700 text-white px-6 py-3 rounded-md cursor-pointer hover:opacity-75 transition-all"
 					>
 						+ Add Store
 					</button>
-					<div className="flex gap-1">
+					{/* <div className="flex gap-1">
 						<h4>Dashboard /</h4>
 						<span className="text-blue-700">Store</span>
-					</div>
+					</div> */}
 				</div>
 			</div>
 
@@ -198,7 +198,7 @@ export default function Page() {
 						Loading stores...
 					</div>
 				) : (
-					<table className="w-full border-collapse">
+					<table className=" border-collapse">
 						<thead>
 							<tr className="bg-gray-100">
 								<th className="px-4 py-2">Store Name</th> {/* Add this column */}
@@ -206,7 +206,7 @@ export default function Page() {
 								<th className="px-4 py-2">Address Line 2</th>
 								<th className="px-4 py-2">Store Category Name</th>
 								<th className="px-4 py-2">Shop Number</th>
-								<th className="px-4 py-2">Store Id</th>
+								{/* <th className="px-4 py-2">Store Id</th> */}
 								<th className="px-4 py-2">Store Email</th>
 								<th className="px-4 py-2">Store Password</th>
 								<th className="px-4 py-2">Status</th>
@@ -221,7 +221,6 @@ export default function Page() {
 									<td className="px-4 py-2">{store.addressTwo}</td>
 									<td className="px-4 py-2">{store.category}</td>
 									<td className="px-4 py-2">{store.storeNumber}</td>
-									<td className="px-4 py-2">{store.storeId}</td>
 									<td className="px-4 py-2">{store.email}</td>
 									<td className="px-4 py-2">{store.password}</td>
 									<td>
