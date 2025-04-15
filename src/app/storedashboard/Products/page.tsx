@@ -3,11 +3,10 @@ import React, { useEffect, useState } from "react"
 import { toast } from "react-toastify"
 import { X } from "lucide-react"
 import * as XLSX from 'xlsx'
-import { faDownload } from '@fortawesome/free-solid-svg-icons';
-
-
-
+import { faDownload } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 import {
   addProductToCategory,
   updateProduct,
@@ -15,6 +14,8 @@ import {
   fetchProductsForCategory,
 } from "../../service/ProductService"
 import { fetchCategoriesForStore } from "@/app/service/category"
+import { addDoc, collection, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore"
+import { db } from "@/app/lib/firebase"
 
 interface Product {
   id: string
@@ -23,10 +24,11 @@ interface Product {
   productImageUrl?: string
   catalogueCategoryId?: string
   catalogueCategoryName?: string
-  stock?: number,
+  stock?: number
   price?: string
   discount?: number
-  finalPrice?: string // Added for storing calculated price
+  finalPrice?: string
+  createdAt?: any
 }
 
 interface Category {
@@ -37,6 +39,7 @@ interface Category {
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [categoryNames, setCategoryNames] = useState<string[]>([])
   const [isProductModalOpen, setIsProductModalOpen] = useState(false)
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false)
   const [storeId, setStoreId] = useState<string | null>(null)
@@ -45,7 +48,12 @@ export default function ProductsPage() {
   const [currentDiscount, setCurrentDiscount] = useState<number>(0)
   const [excelFile, setExcelFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  
+const [showModal, setShowModal] = useState(false)
 
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false)
+  const [imageUrlInput, setImageUrlInput] = useState("")
+ 
   const [formData, setFormData] = useState({
     catalogueProductName: "",
     productDescription: "",
@@ -64,12 +72,59 @@ export default function ProductsPage() {
     }
   }, [])
 
+
+  const openImageModal = (product: Product) => {
+    setSelectedProduct(product)
+    setImageUrlInput(product.productImageUrl || "")
+    setIsImageModalOpen(true)
+  }
+
+
+  const handleSaveImageUrl = async () => {
+    if (!selectedProduct || !storeId || !selectedProduct.catalogueCategoryId || !selectedProduct.id) {
+      toast.error("Unable to update image URL")
+      return
+    }
+
+    try {
+      await updateProduct(
+        storeId,
+        selectedProduct.catalogueCategoryId,
+        selectedProduct.id,
+        { 
+          ...selectedProduct, 
+          productImageUrl: imageUrlInput
+        }
+      )
+      toast.success("Image URL updated successfully!")
+      setIsImageModalOpen(false)
+      
+      if (selectedCategoryId === "all") {
+        await fetchAllProducts(categories)
+      } else {
+        await fetchProducts(selectedCategoryId!)
+      }
+    } catch (error) {
+      toast.error("Failed to update image URL")
+    }
+  }
+
   useEffect(() => {
+    async function fetchCategoryNames(storeId: string): Promise<string[]> {
+      const snapshot = await getDocs(collection(db, `stores/${storeId}/categories`))
+      return snapshot.docs.map(doc => doc.data().catalogueCategoryName)
+    }
+
+
     async function fetchData() {
       if (!storeId) return
       setIsLoading(true)
       
       try {
+        // Fetch category names first
+        const names = await fetchCategoryNames(storeId)
+        setCategoryNames(names)
+
         const fetchedCategories = await fetchCategoriesForStore(storeId)
         const formattedCategories = fetchedCategories?.map((cat) => ({
           catalogueCategoryId: cat.id,
@@ -89,6 +144,8 @@ export default function ProductsPage() {
 
     fetchData()
   }, [storeId])
+
+
 
   const fetchAllProducts = async (categoriesList: Category[]) => {
     if (!storeId || categoriesList.length === 0) return
@@ -154,6 +211,7 @@ export default function ProductsPage() {
         catalogueCategoryName: categories.find(
           cat => cat.catalogueCategoryId === formData.catalogueCategoryId
         )?.catalogueCategoryName,
+        createdAt: serverTimestamp()
       }
       
       await addProductToCategory(storeId, formData.catalogueCategoryId, newProduct)
@@ -316,57 +374,199 @@ export default function ProductsPage() {
     })
   }
 
-  const downloadExcelTemplate = () => {
-    const template = [
-      {
-        'Product Name': '',
-        'Description': '',
-        'Image URL': '',
-        'Category ID': '',
-        'Stock': 0,
-        'Price': '',
-        'Discount (%)': 0
-      }
+  const downloadExcelTemplate = async () => {
+    if (categoryNames.length === 0) {
+      toast.warning("No categories available to create template")
+      return
+    }
+
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('ProductsTemplate')
+
+    sheet.columns = [
+      { header: 'Product Name', key: 'productName', width: 25 },
+      { header: 'Description', key: 'description', width: 30 },
+      { header: 'Image URL', key: 'imageUrl', width: 30 },
+      { header: 'Category', key: 'category', width: 20 },
+      { header: 'Stock', key: 'stock', width: 10 },
+      { header: 'Price', key: 'price', width: 10 },
+      { header: 'Discount (%)', key: 'discount', width: 15 },
     ]
-    
-    const ws = XLSX.utils.json_to_sheet(template)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "ProductsTemplate")
-    XLSX.writeFile(wb, "Products_Template.xlsx")
+
+    sheet.addRow({
+      productName: '',
+      description: '',
+      imageUrl: '',
+      category: '',
+      stock: 0,
+      price: '',
+      discount: 0,
+    })
+
+    const categorySheet = workbook.addWorksheet('CategoryList')
+    categorySheet.state = 'veryHidden'
+
+    categoryNames.forEach((name, index) => {
+      categorySheet.getCell(`A${index + 1}`).value = name
+    })
+
+    for (let i = 2; i <= 100; i++) {
+      sheet.getCell(`D${i}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`=CategoryList!$A$1:$A$${categoryNames.length}`],
+        showErrorMessage: true,
+        errorStyle: 'warning',
+        errorTitle: 'Invalid Category',
+        error: 'Please select a valid category or type a new one.'
+      }
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    saveAs(blob, 'Products_Template_with_Dropdown.xlsx')
   }
 
+  
+  const renderImageCell = (product: Product) => {
+    return (
+      <td className="px-4 py-3">
+        <div className="flex justify-center">
+          {product.productImageUrl ? (
+            <img
+              src={product.productImageUrl}
+              alt={product.catalogueProductName}
+              className="h-14 w-14 rounded-md object-cover shadow-sm cursor-pointer"
+              onClick={() => openImageModal(product)}
+            />
+          ) : (
+            <button
+              onClick={() => openImageModal(product)}
+              className="h-14 w-14 flex items-center justify-center bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+            >
+              <span className="text-xs text-center">Click to Add Image</span>
+            </button>
+          )}
+        </div>
+      </td>
+    )
+  }
   const handleExcelUpload = async () => {
     if (!excelFile || !storeId) return
-    
+  
     try {
       const data = await excelFile.arrayBuffer()
       const workbook = XLSX.read(data)
       const worksheet = workbook.Sheets[workbook.SheetNames[0]]
       const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[]
-      
+  
       for (const item of jsonData) {
-        const discount = parseFloat(item['Discount (%)']) || 0
-        const price = item['Price']?.toString() || '0'
-        
-        const productData = {
-          catalogueProductName: item['Product Name']?.toString() || '',
-          productDescription: item['Description']?.toString() || '',
-          productImageUrl: item['Image URL']?.toString() || '',
-          catalogueCategoryId: item['Category ID']?.toString() || '',
-          stock: item['Stock'] || 0,
-          price: price,
-          discount: discount,
-          finalPrice: calculateFinalPrice(price, discount)
-        }
-        
-        if (!productData.catalogueProductName || !productData.catalogueCategoryId) {
-          toast.warning(`Skipping row - Product Name and Category ID are required`)
+        const productName = item['Product Name']?.toString().trim() || ''
+        const categoryName = item['Category']?.toString().trim() || ''
+  
+        if (!productName || !categoryName) {
+          toast.warning(`Skipping row - Product Name and Category are required`)
           continue
         }
+  
+        const discount = parseFloat(item['Discount (%)']) || 0
+        const price = item['Price'] || ''
+        const stock = parseInt(item['Stock']) || 0
+        const description = item['Description']?.toString() || ''
+        const imageUrl = item['Image URL']?.toString() || ''
+  
+        const existingCategory = categories.find(
+          cat => cat.catalogueCategoryName.toLowerCase() === categoryName.toLowerCase()
+        )
+  
+        let categoryId = existingCategory?.catalogueCategoryId || ''
+  
+        if (!categoryId) {
+          const categoryQuery = await getDocs(
+            query(
+              collection(db, `stores/${storeId}/categories`),
+              where('catalogueCategoryName', '==', categoryName)
+            )
+          );
         
-        await addProductToCategory(storeId, productData.catalogueCategoryId, productData)
+          if (!categoryQuery.empty) {
+            categoryId = categoryQuery.docs[0].id;
+          } else {
+            // Step 1: Add the doc first with name only
+            const newCategoryDoc = await addDoc(
+              collection(db, `stores/${storeId}/categories`),
+              {
+                catalogueCategoryName: categoryName
+              }
+            );
+        
+            // Step 2: Update the doc with its own ID
+            await updateDoc(newCategoryDoc, {
+              catalogueCategoryId: newCategoryDoc.id
+            });
+        
+            categoryId = newCategoryDoc.id;
+        
+            setCategories(prev => [
+              ...prev,
+              {
+                catalogueCategoryId: categoryId,
+                catalogueCategoryName: categoryName
+              }
+            ]);
+          }
+        }
+        
+        // if (!categoryId) {
+        //   const categoryQuery = await getDocs(
+        //     query(
+        //       collection(db, `stores/${storeId}/categories`),
+        //       where('catalogueCategoryName', '==', categoryName)
+        //     )
+        //   )
+  
+        //   if (!categoryQuery.empty) {
+        //     categoryId = categoryQuery.docs[0].id
+        //   } else {
+        //     const newCategoryDoc = await addDoc(
+        //       collection(db, `stores/${storeId}/categories`),
+        //       {
+        //         catalogueCategoryName: categoryName,
+        //         // createdAt: serverTimestamp
+        //         // catalogueCategoryId:newCategoryDoc.id
+        //       }
+        //     )
+        //     categoryId = newCategoryDoc.id
+           
+        //     setCategories(prev => [
+        //       ...prev,
+        //       {
+        //         catalogueCategoryId: categoryId,
+        //         catalogueCategoryName: categoryName
+        //       }
+        //     ])
+        //   }
+        // }
+  
+        const productData = {
+          catalogueCategoryId: categoryId,
+          catalogueCategoryName: categoryName,
+          catalogueProductName: productName,
+          price: price,
+          stock: stock,
+          productDescription: description,
+          productImageUrl: imageUrl,
+          discount: discount,
+          finalPrice: calculateFinalPrice(price, discount),
+          createdAt: serverTimestamp()
+        }
+  
+        await addDoc(
+          collection(db, `stores/${storeId}/categories/${categoryId}/products`),
+          productData
+        )
       }
-      
+  
       toast.success("Products imported successfully!")
       setExcelFile(null)
       await fetchAllProducts(categories)
@@ -383,7 +583,6 @@ export default function ProductsPage() {
     return (priceNum - discountAmount).toFixed(2)
   }
 
-  // Loading shimmer component
   const LoadingRow = () => (
     <tr className="animate-pulse">
       <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded"></div></td>
@@ -408,7 +607,7 @@ export default function ProductsPage() {
       <div className="flex justify-between items-center">
         <h2 className="font-semibold text-5xl">Manage Products</h2>
         <div className="flex gap-4">
-          <button
+          {/* <button
             onClick={() => {
               const fileInput = document.createElement('input')
               fileInput.type = 'file'
@@ -423,7 +622,7 @@ export default function ProductsPage() {
             }}
             className="bg-green-700 text-white px-4 py-3 rounded-md hover:opacity-75"
           >
-             Import products from Excel
+            Import products from Excel
           </button>
           {excelFile && (
             <button
@@ -432,20 +631,40 @@ export default function ProductsPage() {
             >
               Upload {excelFile.name}
             </button>
-          )}
+          )} */}
+
+<button
+  onClick={() => {
+    const fileInput = document.createElement('input')
+    fileInput.type = 'file'
+    fileInput.accept = '.xlsx,.xls'
+    fileInput.onchange = (e) => {
+      const files = (e.target as HTMLInputElement).files
+      if (files && files[0]) {
+        setExcelFile(files[0])
+        setShowModal(true)  // show modal when file selected
+      }
+    }
+    fileInput.click()
+  }}
+  className="bg-green-700 text-white px-4 py-3 rounded-md hover:opacity-75"
+>
+  Import products from Excel
+</button>
+
           <button
             onClick={() => setIsProductModalOpen(true)}
-            className="bg-blue-700 text-white px-4 py-3 rounded-md hover:opacity-75 "
+            className="bg-blue-700 text-white px-4 py-3 rounded-md hover:opacity-75"
           >
             + Add Product
           </button>
           <button
-  onClick={downloadExcelTemplate}
-  className="bg-purple-700 text-center text-white px-6 py-3 rounded-md hover:opacity-75 mr-14 flex items-center gap-2"
->
-  <FontAwesomeIcon icon={faDownload} />
-  <span>Excel Format</span>
-</button>
+            onClick={downloadExcelTemplate}
+            className="bg-purple-700 text-center text-white px-6 py-3 rounded-md hover:opacity-75 mr-14 flex items-center gap-2"
+          >
+            <FontAwesomeIcon icon={faDownload} />
+            <span>Excel Format</span>
+          </button>
         </div>
       </div>
 
@@ -502,7 +721,7 @@ export default function ProductsPage() {
                       {product.productDescription}
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  {/* <td className="px-4 py-3">
                     <div className="flex justify-center">
                       <img
                         src={product.productImageUrl || 'default.png'}
@@ -514,7 +733,8 @@ export default function ProductsPage() {
                         }}
                       />
                     </div>
-                  </td>
+                  </td> */}
+                  {renderImageCell(product)}
                   <td className="px-4 py-3">{product.catalogueCategoryName}</td>
                   <td className="px-4 py-3">{product.stock}</td>
                   <td className="px-4 py-3 font-medium">₹{product.price}</td>
@@ -710,6 +930,87 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+{isImageModalOpen && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div className="bg-white rounded-lg p-6 w-96">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-semibold">
+          {selectedProduct?.productImageUrl ? 'Update Image URL' : 'Add Image URL'}
+        </h2>
+        <X
+          className="cursor-pointer"
+          onClick={() => setIsImageModalOpen(false)}
+        />
+      </div>
+      <div className="mb-4">
+        <label className="block mb-2">Image URL:</label>
+        <input
+          type="text"
+          value={imageUrlInput}
+          onChange={(e) => setImageUrlInput(e.target.value)}
+          placeholder="Enter image URL"
+          className="border-2 w-full p-2 rounded-lg"
+        />
+        {imageUrlInput && (
+          <div className="mt-4">
+            <p className="mb-2">Preview:</p>
+            <img 
+              src={imageUrlInput} 
+              alt="Preview" 
+              className="h-20 w-20 object-cover rounded-md"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.style.display = 'none'
+              }}
+            />
+          </div>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={handleSaveImageUrl}
+          className="flex-1 bg-blue-700 text-white py-2 rounded-lg hover:opacity-75"
+        >
+          Save
+        </button>
+        <button
+          onClick={() => setIsImageModalOpen(false)}
+          className="flex-1 bg-gray-500 text-white py-2 rounded-lg hover:opacity-75"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+{showModal && excelFile && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white p-6 rounded-lg shadow-lg w-[90%] max-w-md">
+      <h2 className="text-xl font-bold mb-4">Upload Excel File</h2>
+      <p className="mb-4">Selected File: <strong>{excelFile.name}</strong></p>
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={() => {
+            setShowModal(false)
+            setExcelFile(null)
+          }}
+          className="bg-gray-500 text-white px-4 py-2 rounded hover:opacity-75"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => {
+            handleExcelUpload()
+            setShowModal(false)
+          }}
+          className="bg-blue-700 text-white px-4 py-2 rounded hover:opacity-75"
+        >
+          Upload
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {isDiscountModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
@@ -762,5 +1063,5 @@ export default function ProductsPage() {
         </div>
       )}
     </div>
-  )	
+  )
 }
