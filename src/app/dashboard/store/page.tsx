@@ -11,7 +11,7 @@ import {
 } from "../../service/store.service"
 
 export default function Page() {
-	interface Store {
+	interface Helps {
 		storeName: string
 		addressOne: string
 		addressTwo: string
@@ -21,6 +21,7 @@ export default function Page() {
 		email: string
 		password: string
 		status: string
+		personalEmail: string
 		location?: { lat: number; lng: number }
 	}
 
@@ -32,7 +33,6 @@ export default function Page() {
 	const [loading, setLoading] = useState(false)
 	const [isOpen, setIsOpen] = useState(false)
 	const [status, setStatus] = useState("Active")
-
 	const [location, setLocation] = useState<{
 		lat: number
 		lng: number
@@ -40,9 +40,9 @@ export default function Page() {
 	const [storeName, setStoreName] = useState("")
 
 	// Fetch data
-	const [stores, setStores] = useState<Store[]>([])
+	const [stores, setStores] = useState<Helps[]>([])
 	const [isFetching, setIsFetching] = useState(true)
-	const [selectedStores, setSelectedStores] = useState<Store | null>(
+	const [selectedStores, setSelectedStores] = useState<Helps | null>(
 		null
 	)
 
@@ -79,29 +79,52 @@ export default function Page() {
 		const password = Math.random().toString(36).slice(-10)
 		return { storeId, email, password }
 	}
+
 	const handleSubmit = async (e: any) => {
 		e.preventDefault()
 		setLoading(true)
-		const { storeId, email, password } = generateValues()
 
 		try {
-			const res = await addStore({
-				addressOne,
-				storeId,
-				addressTwo,
-				storeName,
-				category,
-				storeNumber,
-				email,
-				password,
-				status,
-				personalEmail, // Store owner's personal email
-			})
+			if (selectedStores) {
+				// Update existing store
+				const updatedStore = {
+					storeId: selectedStores.storeId,
+					storeName,
+					addressOne,
+					addressTwo,
+					category,
+					storeNumber,
+					email: selectedStores.email,
+					password: selectedStores.password,
+					status,
+					personalEmail,
+					location: selectedStores.location,
+				}
 
-			if (res) {
-				toast.success("Store added Successfully")
+				await updateStore(updatedStore)
+				toast.success("Store updated successfully")
+				setIsOpen(false)
+				clearFormFields()
+				setSelectedStores(null)
+				await getStores()
+			} else {
+				// Add new store
+				const { storeId, email, password } = generateValues()
+				await addStore({
+					addressOne,
+					storeId,
+					addressTwo,
+					storeName,
+					category,
+					storeNumber,
+					email,
+					password,
+					status,
+					personalEmail,
+				})
 
-				// Call the API route to send email
+				toast.success("Store added successfully")
+
 				const emailRes = await fetch("/api/send-email", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
@@ -125,51 +148,55 @@ export default function Page() {
 				await importUsersFromFirestore()
 			}
 		} catch (error) {
-			toast.error("Unable to add Store!!")
+			toast.error(
+				selectedStores
+					? "Unable to update store!"
+					: "Unable to add store!"
+			)
 		} finally {
 			setLoading(false)
 		}
 	}
 
-	const handleEditClick = (store: Store) => {
+	const handleEditClick = (store: Helps) => {
 		setSelectedStores(store)
-		console.log(selectedStores?.storeId)
-
 		setAddressOne(store.addressOne)
 		setAddressTwo(store.addressTwo)
 		setCategory(store.category)
 		setStoreNumber(store.storeNumber)
 		setStatus(store.status)
 		setLocation(store.location || null)
-		setStoreName(store.storeName || "") // Add this line to set storeName when editing
-
+		setStoreName(store.storeName || "")
+		setPersonalEmail(store.personalEmail || "")
 		setIsOpen(true)
 	}
 
-	// Clear all form fields
 	const clearFormFields = () => {
 		setCategory("")
 		setAddressOne("")
 		setAddressTwo("")
 		setStoreNumber("")
 		setPersonalEmail("")
+		setStoreName("")
+		setStatus("Active")
+		setLocation(null)
+		setSelectedStores(null)
 	}
-	// Close the modal and clear fields
+
 	const handleCloseModal = () => {
 		setIsOpen(false)
 		clearFormFields()
 	}
 
-	// Handle Delete Store
 	const handleDeleteClick = async (storeId: string) => {
 		const confirmDelete = window.confirm(
 			"Are you sure you want to delete this store?"
 		)
 		if (confirmDelete) {
 			try {
-				await deleteStore(storeId) // Call the delete function from store.service
+				await deleteStore(storeId)
 				toast.success("Store deleted successfully!")
-				await getStores() // Fetch updated store list after deletion
+				await getStores()
 			} catch (error) {
 				toast.error("Error deleting store!")
 			}
@@ -187,30 +214,23 @@ export default function Page() {
 					>
 						+ Add Store
 					</button>
-					{/* <div className="flex gap-1">
-						<h4>Dashboard /</h4>
-						<span className="text-blue-700">Store</span>
-					</div> */}
 				</div>
 			</div>
 
-			{/* Table Section */}
 			<div className="flex bg-white rounded-lg p-5 mt-10">
 				{isFetching ? (
 					<div className="w-full flex justify-center items-center text-lg font-semibold">
 						Loading stores...
 					</div>
 				) : (
-					<table className=" border-collapse">
+					<table className="border-collapse">
 						<thead>
 							<tr className="bg-gray-100">
-								<th className="px-4 py-2">Store Name</th>{" "}
-								{/* Add this column */}
+								<th className="px-4 py-2">Store Name</th>
 								<th className="px-4 py-2">Address Line 1</th>
 								<th className="px-4 py-2">Address Line 2</th>
 								<th className="px-4 py-2">Store Category Name</th>
 								<th className="px-4 py-2">Shop Number</th>
-								{/* <th className="px-4 py-2">Store Id</th> */}
 								<th className="px-4 py-2">Store Email</th>
 								<th className="px-4 py-2">Store Password</th>
 								<th className="px-4 py-2">Status</th>
@@ -220,8 +240,7 @@ export default function Page() {
 						{stores.map((store) => (
 							<tbody key={store.storeId}>
 								<tr className="border-t text-center">
-									<td className="px-4 py-2">{store.storeName}</td>{" "}
-									{/* Add this cell */}
+									<td className="px-4 py-2">{store.storeName}</td>
 									<td className="px-4 py-2">{store.addressOne}</td>
 									<td className="px-4 py-2">{store.addressTwo}</td>
 									<td className="px-4 py-2">{store.category}</td>
@@ -231,17 +250,17 @@ export default function Page() {
 									<td>
 										<div
 											className={`px-4 mt-1 py-2 font-semibold 
-                        ${
+												${
 													store.status === "Active"
 														? "bg-green-500 text-white rounded-lg"
 														: ""
 												}
-                        ${
+												${
 													store.status === "Inactive"
 														? "bg-yellow-500 text-white rounded-lg"
 														: ""
 												}
-                        ${
+												${
 													store.status === "Suspended"
 														? "bg-red-600 text-white rounded-lg"
 														: ""
@@ -250,21 +269,21 @@ export default function Page() {
 											{store.status}
 										</div>
 									</td>
-									<div className="flex items-center px-5 gap-5 py-6">
-										<td
+									<td className="flex items-center px-5 gap-5 py-6">
+										<button
 											className="bg-blue-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
 											onClick={() => handleEditClick(store)}
 										>
 											Edit
-										</td>
+										</button>
 										<button
 											type="button"
 											className="bg-red-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
-											onClick={() => handleDeleteClick(store.storeId)} // Delete function
+											onClick={() => handleDeleteClick(store.storeId)}
 										>
 											Delete
 										</button>
-									</div>
+									</td>
 								</tr>
 							</tbody>
 						))}
@@ -272,7 +291,6 @@ export default function Page() {
 				)}
 			</div>
 
-			{/* Modal Section */}
 			{isOpen && (
 				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
 					<div className="flex flex-col items-center justify-center mt-10 ml-20">
@@ -280,7 +298,7 @@ export default function Page() {
 							<div className="p-6 space-y-4 md:space-y-6 sm:p-8">
 								<div className="flex items-center justify-between">
 									<h2 className="text-4xl font-semibold">
-										Add Store
+										{selectedStores ? "Edit Store" : "Add Store"}
 									</h2>
 									<X
 										className="hover:text-red-600 cursor-pointer"
@@ -308,7 +326,7 @@ export default function Page() {
 												}
 												placeholder="Address Line 1"
 												required
-												className=" border-2 border-stroke outline-indigo-700  rounded-lg w-full p-2.5 "
+												className="border-2 border-stroke outline-indigo-700 rounded-lg w-full p-2.5"
 											/>
 										</div>
 										<div className="flex-grow">
@@ -318,10 +336,9 @@ export default function Page() {
 												onChange={(e) =>
 													setAddressTwo(e.target.value)
 												}
-												name="MobileNumber"
 												placeholder="Address Line 2"
 												required
-												className=" border-2 border-stroke outline-indigo-700 text-gray-900 rounded-lg w-full p-2.5 "
+												className="border-2 border-stroke outline-indigo-700 rounded-lg w-full p-2.5"
 											/>
 										</div>
 									</div>
@@ -332,7 +349,7 @@ export default function Page() {
 											onChange={(e) => setStoreNumber(e.target.value)}
 											placeholder="Store Number"
 											required
-											className=" border-2 border-stroke outline-indigo-700 text-gray-900 rounded-lg w-full p-2.5 "
+											className="border-2 border-stroke outline-indigo-700 rounded-lg w-full p-2.5"
 										/>
 									</div>
 									<div className="flex flex-col gap-5">
@@ -342,37 +359,38 @@ export default function Page() {
 											onChange={(e) => setCategory(e.target.value)}
 											placeholder="Category"
 											required
-											className=" border-2 border-stroke outline-indigo-700 text-gray-900 rounded-lg w-full p-2.5 "
+											className="border-2 border-stroke outline-indigo-700 rounded-lg w-full p-2.5"
 										/>
-										<div className="flex flex-col gap-5">
-											<input
-												type="email"
-												value={personalEmail}
-												onChange={(e) =>
-													setPersonalEmail(e.target.value)
-												}
-												placeholder="Store Head Personal Email"
-												required
-												className="border-2 border-stroke outline-indigo-700 text-gray-900 rounded-lg w-full p-2.5"
-											/>
-										</div>
+										<input
+											type="email"
+											value={personalEmail}
+											onChange={(e) =>
+												setPersonalEmail(e.target.value)
+											}
+											placeholder="Store Head Personal Email"
+											required
+											className="border-2 border-stroke outline-indigo-700 rounded-lg w-full p-2.5"
+										/>
 										<select
 											className="w-full border border-gray-300 rounded-md p-3 outline-indigo-700"
 											onChange={(e) => setStatus(e.target.value)}
 											value={status}
 										>
-											<option>Status</option>
+											<option value="">Select Status</option>
 											<option value="Active">Active</option>
 											<option value="Inactive">Inactive</option>
 											<option value="Suspended">Suspended</option>
 										</select>
 									</div>
-
 									<button
 										type="submit"
 										className="w-full text-white bg-indigo-700 hover:opacity-75 focus:ring-4 focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center"
 									>
-										{loading ? "Saving..." : "Add Store"}
+										{loading
+											? "Saving..."
+											: selectedStores
+											? "Update Store"
+											: "Add Store"}
 									</button>
 								</form>
 							</div>
