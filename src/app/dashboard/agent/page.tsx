@@ -1,28 +1,25 @@
-// Page.jsx
 "use client"
+
 import React, { useEffect, useState } from "react"
 import { toast } from "react-toastify"
 import {
 	addAgent,
-	fetchAgents,
-	importUsersFromAgentFirestore,
-	updateAgent,
 	deleteAgent,
-} from "../../service/agent.service"
+	getAgents,
+	updateAgent,
+} from "../../service/agent.service" // Adjust path if needed
 import { X } from "lucide-react"
 
-interface Agent {
-	agentId: string
-	agentName: string
-	mobileNumber: string
-	image?: string
-	email: string // Ensure email is included
-	password: string // Ensure password is included
-	personalEmail: string
-}
-
 export default function Page() {
-	const deliveryAgent = "agent"
+	interface Agent {
+		agentId: string
+		agentName: string
+		mobileNumber: string
+		image?: string
+		email: string
+		password: string
+	}
+
 	const [agentName, setAgentName] = useState("")
 	const [mobileNumber, setMobileNumber] = useState("")
 	const [loading, setLoading] = useState(false)
@@ -32,158 +29,112 @@ export default function Page() {
 	const [selectedAgent, setSelectedAgent] = useState<Agent | null>(
 		null
 	)
+
+	// Fetch agents
 	const [agents, setAgents] = useState<Agent[]>([])
 	const [isFetching, setIsFetching] = useState(true)
 
-	// Fetch agents
-	const getAgents = async () => {
+	const fetchAgents = async () => {
 		setIsFetching(true)
 		try {
-			const data = await fetchAgents()
-			setAgents((data as []) || []) // Ensure data is an array
-			console.log(data)
+			const data = await getAgents()
+			setAgents(data as [])
 		} catch (error) {
-			toast.error("Unable to Fetch Data!!")
+			toast.error("Unable to Fetch Agents!")
 		} finally {
 			setIsFetching(false)
 		}
 	}
 
 	useEffect(() => {
-		getAgents()
-		importUsersFromAgentFirestore()
+		fetchAgents()
 	}, [])
 
-	const generateValues = () => {
-		const timeStamp = Date.now()
-		const agentId = `${mobileNumber.slice(-4)}-${timeStamp}`
-		const email = `${agentName
-			.toLowerCase()
-			.replace(/\s+/g, "")}-${mobileNumber.substring(
-			0,
-			3
-		)}@${deliveryAgent.toLowerCase()}.com`
-		const password = Math.random().toString(36).slice(-10)
-		return { agentId, email, password }
-	}
-
-	const handleImageUpload = (
-		e: React.ChangeEvent<HTMLInputElement>
-	) => {
-		const file = e.target.files?.[0]
+	// Handle Image Upload (Base64 conversion)
+	const handleImageUpload = (e: any) => {
+		const file = e.target.files[0]
 		if (file) {
 			const reader = new FileReader()
 			reader.onloadend = () => {
-				setFileName(reader.result as string)
+				setFileName(reader.result as string) // Store Base64
 			}
 			reader.readAsDataURL(file)
 		}
 	}
 
-	const handleSubmit = async (e: React.FormEvent) => {
+	// Handle Form Submission
+	const handleSubmit = async (e: any) => {
 		e.preventDefault()
 		setLoading(true)
-		const { email, agentId, password } = generateValues()
 
 		try {
 			if (selectedAgent) {
-				// Update existing agent
 				await updateAgent(selectedAgent.agentId, {
 					agentName,
 					mobileNumber,
-					personalEmail,
-					email, // Include email
-					password, // Include password
-					image: fileName || selectedAgent.image,
-				})
-				toast.success("Agent Updated Successfully")
-			} else {
-				// Add new agent
-				const res = await addAgent({
-					agentName,
-					agentId,
-					mobileNumber,
-					personalEmail,
-					email, // Include email
-					password, // Include password
 					image: fileName,
 				})
-
-				if (res) {
-					toast.success("Agent Added Successfully")
-					const emailResp = await fetch("/api/send-email", {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({
-							toEmail: personalEmail,
-							agentEmail: email,
-							agentPassword: password,
-						}),
-					})
-
-					const emailData = await emailResp.json()
-					if (!emailResp.ok) {
-						throw new Error("Failed to send email")
-					}
-
-					if (emailData.success) {
-						toast.success("Email sent to agent successfully!")
-					} else {
-						toast.error("Failed to send email to agent.")
-					}
-				}
+				toast.success("Store Updated Successfully")
+				setIsOpen(false)
+				clearFormFields() // Clear the form fields on success
+				await getAgents() // Fetch updated store list
 			}
+			const res = await addAgent({
+				agentName,
+				personalEmail,
+				mobileNumber,
+				image: fileName,
+			})
 
-			setIsOpen(false)
-			clearFormFields()
-			await getAgents()
-			await importUsersFromAgentFirestore()
+			if (res.success) {
+				toast.success("Agent added successfully")
+				setIsOpen(false)
+				clearFormFields()
+				await fetchAgents()
+			}
 		} catch (error) {
-			toast.error(
-				`Unable to ${selectedAgent ? "update" : "add"} Agent!`
-			)
+			toast.error("Unable to add Agent!")
 		} finally {
 			setLoading(false)
 		}
 	}
 
-	const isFormValid = agentName && mobileNumber && personalEmail
-
+	// Clear form fields
 	const clearFormFields = () => {
 		setAgentName("")
 		setMobileNumber("")
 		setFileName("")
 		setPersonalEmail("")
-		setSelectedAgent(null)
 	}
-
 	const handleEditClick = (agent: Agent) => {
 		setSelectedAgent(agent)
+		console.log(selectedAgent?.agentId)
+
 		setAgentName(agent.agentName)
 		setMobileNumber(agent.mobileNumber)
-		setPersonalEmail(agent.personalEmail) // Use personalEmail
 		setFileName("")
+
 		setIsOpen(true)
 	}
 
-	const handleDeleteClick = async (agentId: string) => {
+	// Close modal
+	const handleCloseModal = () => {
+		setIsOpen(false)
+		clearFormFields()
+	}
+	const handleDeleteClick = async (storeId: string) => {
 		const confirmDelete = window.confirm(
 			"Are you sure you want to delete this Agent?"
 		)
 		if (confirmDelete) {
 			try {
-				await deleteAgent(agentId)
+				await deleteAgent(storeId) // Call the delete function from store.service
 				toast.success("Agent deleted successfully!")
-				await getAgents()
+				await fetchAgents() // Fetch updated store list after deletion
 			} catch (error) {
 				toast.error("Error deleting Agent!")
 			}
 		}
-	}
-
-	const handleCloseModal = () => {
-		setIsOpen(false)
-		clearFormFields()
 	}
 
 	return (
@@ -198,6 +149,7 @@ export default function Page() {
 				</button>
 			</div>
 
+			{/* Table Section */}
 			<div className="flex bg-white rounded-lg p-5 mt-10">
 				{isFetching ? (
 					<div className="w-full flex justify-center items-center text-lg font-semibold">
@@ -210,64 +162,51 @@ export default function Page() {
 								<th className="px-4 py-2">Agent ID</th>
 								<th className="px-4 py-2">Agent Name</th>
 								<th className="px-4 py-2">Mobile Number</th>
-								<th className="px-4 py-2">Image</th>
+								<th className="px-4 py-2">Image URL</th>
 								<th className="px-4 py-2">Email</th>
 								<th className="px-4 py-2">Password</th>
 								<th className="px-4 py-2">Action</th>
 							</tr>
 						</thead>
-						<tbody>
-							{agents.map((agent) => (
-								<tr
-									key={agent.agentId}
-									className="border-t text-center"
-								>
+						{agents.map((agent) => (
+							<tbody key={agent.agentId}>
+								<tr className="border-t text-center">
 									<td className="px-4 py-2">{agent.agentId}</td>
 									<td className="px-4 py-2">{agent.agentName}</td>
 									<td className="px-4 py-2">{agent.mobileNumber}</td>
 									<td className="px-4 py-2">
-										{agent.image ? (
-											<img
-												src={agent.image}
-												alt={agent.agentName}
-												className="w-16 h-16 rounded-full shadow-lg mx-auto"
-											/>
-										) : (
-											"No Image"
-										)}
+										<img
+											src={agent.image}
+											alt={agent.agentName}
+											className="w-16 h-16 rounded-full shadow-lg"
+										/>
 									</td>
-									<td className="px-4 py-2">
-										{agent.email || "N/A"}
-									</td>
-									<td className="px-4 py-2">
-										{agent.password || "N/A"}
-									</td>
-									<td className="px-4 py-2">
-										<div className="flex items-center justify-center gap-5">
-											<button
-												className="bg-blue-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
-												onClick={() => handleEditClick(agent)}
-											>
-												Edit
-											</button>
-											<button
-												type="button"
-												onClick={() =>
-													handleDeleteClick(agent.agentId)
-												}
-												className="bg-red-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
-											>
-												Delete
-											</button>
-										</div>
-									</td>
+									<td className="px-4 py-2">{agent.email}</td>
+									<td className="px-4 py-2">{agent.password}</td>
+									<div className="flex items-center px-5 gap-5 py-6">
+										<td
+											className="bg-blue-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
+											onClick={() => handleEditClick(agent)}
+										>
+											Edit
+										</td>
+										<button
+											type="button"
+											onClick={() => handleDeleteClick(agent.agentId)}
+											className="bg-red-600 text-white px-4 py-1 rounded-lg hover:opacity-75 cursor-pointer"
+											// onClick={() => handleDeleteClick(store.storeId)} // Delete function
+										>
+											Delete
+										</button>
+									</div>
 								</tr>
-							))}
-						</tbody>
+							</tbody>
+						))}
 					</table>
 				)}
 			</div>
 
+			{/* Modal Section */}
 			{isOpen && (
 				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
 					<div className="bg-white p-6 rounded-lg w-96">
@@ -311,11 +250,7 @@ export default function Page() {
 								onChange={handleImageUpload}
 								className="w-full p-2"
 							/>
-							<button
-								type="submit"
-								className="bg-blue-600 text-white p-2 w-full rounded"
-								disabled={loading || !isFormValid}
-							>
+							<button className="bg-blue-600 text-white p-2 w-full rounded">
 								{loading
 									? "Saving..."
 									: selectedAgent

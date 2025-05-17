@@ -731,7 +731,7 @@ export default function ProductsPage() {
 			<div className="flex justify-between items-center">
 				<h2 className="font-semibold text-5xl">Manage Products</h2>
 				<div className="flex gap-4">
-					<button
+					{/* <button
 						onClick={() => {
 							const fileInput = document.createElement("input")
 							fileInput.type = "file"
@@ -748,20 +748,20 @@ export default function ProductsPage() {
 						className="bg-green-700 text-white px-4 py-3 rounded-md hover:opacity-75"
 					>
 						Import products from Excel
-					</button>
+					</button> */}
 					<button
 						onClick={() => setIsProductModalOpen(true)}
 						className="bg-blue-700 text-white px-4 py-3 rounded-md hover:opacity-75"
 					>
 						+ Add Product
 					</button>
-					<button
+					{/* <button
 						onClick={downloadExcelTemplate}
 						className="bg-purple-700 text-center text-white px-6 py-3 rounded-md hover:opacity-75 mr-14 flex items-center gap-2"
 					>
 						<FontAwesomeIcon icon={faDownload} />
 						<span>Excel Format</span>
-					</button>
+					</button> */}
 				</div>
 			</div>
 
