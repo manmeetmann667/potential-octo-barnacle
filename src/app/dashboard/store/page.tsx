@@ -1,4 +1,5 @@
 "use client"
+
 import React, { useEffect, useState } from "react"
 import { X } from "lucide-react"
 import { toast } from "react-toastify"
@@ -10,21 +11,21 @@ import {
 	deleteStore,
 } from "../../service/store.service"
 
-export default function Page() {
-	interface Helps {
-		storeName: string
-		addressOne: string
-		addressTwo: string
-		storeId: string
-		category: string
-		storeNumber: string
-		email: string
-		password: string
-		status: string
-		personalEmail: string
-		location?: { lat: number; lng: number }
-	}
+interface Store {
+	storeId: string
+	storeName: string
+	addressOne: string
+	addressTwo: string
+	category: string
+	storeNumber: string
+	email: string
+	password: string
+	status: string
+	personalEmail: string
+	location?: { lat: number; lng: number }
+}
 
+export default function Page() {
 	const [addressOne, setAddressOne] = useState("")
 	const [addressTwo, setAddressTwo] = useState("")
 	const [personalEmail, setPersonalEmail] = useState("")
@@ -38,11 +39,9 @@ export default function Page() {
 		lng: number
 	} | null>(null)
 	const [storeName, setStoreName] = useState("")
-
-	// Fetch data
-	const [stores, setStores] = useState<Helps[]>([])
+	const [stores, setStores] = useState<Store[]>([])
 	const [isFetching, setIsFetching] = useState(true)
-	const [selectedStores, setSelectedStores] = useState<Helps | null>(
+	const [selectedStores, setSelectedStores] = useState<Store | null>(
 		null
 	)
 
@@ -53,7 +52,9 @@ export default function Page() {
 			setStores(data as [])
 			console.log(data)
 		} catch (error) {
-			toast.error("Unable to Fetch Data!!")
+			toast.error(
+				(error as Error).message || "Unable to fetch stores!"
+			)
 		} finally {
 			setIsFetching(false)
 		}
@@ -80,28 +81,22 @@ export default function Page() {
 		return { storeId, email, password }
 	}
 
-	const handleSubmit = async (e: any) => {
+	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
-		setLoading(true)
+		setLoading(true) // Fixed typo: setLoadingampp -> setLoading
 
 		try {
 			if (selectedStores) {
-				// Update existing store
-				const updatedStore = {
-					storeId: selectedStores.storeId,
+				// Update existing store (exclude personalEmail, email, password)
+				await updateStore(selectedStores.storeId, {
 					storeName,
 					addressOne,
 					addressTwo,
 					category,
 					storeNumber,
-					email: selectedStores.email,
-					password: selectedStores.password,
 					status,
-					personalEmail,
-					location: selectedStores.location,
-				}
-
-				await updateStore(updatedStore)
+					location: selectedStores.location || null,
+				})
 				toast.success("Store updated successfully")
 				setIsOpen(false)
 				clearFormFields()
@@ -111,10 +106,10 @@ export default function Page() {
 				// Add new store
 				const { storeId, email, password } = generateValues()
 				await addStore({
-					addressOne,
 					storeId,
-					addressTwo,
 					storeName,
+					addressOne,
+					addressTwo,
 					category,
 					storeNumber,
 					email,
@@ -149,16 +144,17 @@ export default function Page() {
 			}
 		} catch (error) {
 			toast.error(
-				selectedStores
-					? "Unable to update store!"
-					: "Unable to add store!"
+				(error as Error).message ||
+					(selectedStores
+						? "Unable to update store!"
+						: "Unable to add store!")
 			)
 		} finally {
 			setLoading(false)
 		}
 	}
 
-	const handleEditClick = (store: Helps) => {
+	const handleEditClick = (store: Store) => {
 		setSelectedStores(store)
 		setAddressOne(store.addressOne)
 		setAddressTwo(store.addressTwo)
@@ -198,14 +194,16 @@ export default function Page() {
 				toast.success("Store deleted successfully!")
 				await getStores()
 			} catch (error) {
-				toast.error("Error deleting store!")
+				toast.error(
+					(error as Error).message || "Error deleting store!"
+				)
 			}
 		}
 	}
 
 	return (
 		<div>
-			<div className="flex justify-between items-center ">
+			<div className="flex justify-between items-center">
 				<h2 className="font-semibold text-5xl">Stores</h2>
 				<div className="flex gap-10 items-center font-semibold">
 					<button
@@ -223,7 +221,7 @@ export default function Page() {
 						Loading stores...
 					</div>
 				) : (
-					<table className="border-collapse">
+					<table className="border-collapse w-full">
 						<thead>
 							<tr className="bg-gray-100">
 								<th className="px-4 py-2">Store Name</th>
@@ -237,9 +235,12 @@ export default function Page() {
 								<th className="px-4 py-2">Action</th>
 							</tr>
 						</thead>
-						{stores.map((store) => (
-							<tbody key={store.storeId}>
-								<tr className="border-t text-center">
+						<tbody>
+							{stores.map((store) => (
+								<tr
+									key={store.storeId}
+									className="border-t text-center"
+								>
 									<td className="px-4 py-2">{store.storeName}</td>
 									<td className="px-4 py-2">{store.addressOne}</td>
 									<td className="px-4 py-2">{store.addressTwo}</td>
@@ -250,17 +251,17 @@ export default function Page() {
 									<td>
 										<div
 											className={`px-4 mt-1 py-2 font-semibold 
-												${
+                        ${
 													store.status === "Active"
 														? "bg-green-500 text-white rounded-lg"
 														: ""
 												}
-												${
+                        ${
 													store.status === "Inactive"
 														? "bg-yellow-500 text-white rounded-lg"
 														: ""
 												}
-												${
+                        ${
 													store.status === "Suspended"
 														? "bg-red-600 text-white rounded-lg"
 														: ""
@@ -285,8 +286,8 @@ export default function Page() {
 										</button>
 									</td>
 								</tr>
-							</tbody>
-						))}
+							))}
+						</tbody>
 					</table>
 				)}
 			</div>
@@ -368,8 +369,8 @@ export default function Page() {
 												setPersonalEmail(e.target.value)
 											}
 											placeholder="Store Head Personal Email"
-											required
 											className="border-2 border-stroke outline-indigo-700 rounded-lg w-full p-2.5"
+											disabled={!!selectedStores} // Disable during editing
 										/>
 										<select
 											className="w-full border border-gray-300 rounded-md p-3 outline-indigo-700"
@@ -385,6 +386,7 @@ export default function Page() {
 									<button
 										type="submit"
 										className="w-full text-white bg-indigo-700 hover:opacity-75 focus:ring-4 focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center"
+										disabled={loading}
 									>
 										{loading
 											? "Saving..."

@@ -6,6 +6,7 @@ import {
 	where,
 	updateDoc,
 	deleteDoc,
+	doc,
 } from "firebase/firestore"
 import {
 	createUserWithEmailAndPassword,
@@ -24,11 +25,8 @@ function generateAgentId() {
 // Function to check if the email is unique
 export async function isUnique(email) {
 	const agentRef = collection(db, "agents")
-
-	// Query Firestore for existing email
 	const emailQuery = query(agentRef, where("email", "==", email))
 	const emailSnapshot = await getDocs(emailQuery)
-
 	return emailSnapshot.empty // True if email is unique
 }
 
@@ -61,15 +59,12 @@ function generateUniquePassword() {
 
 // Function to add an agent to Firestore and Firebase Authentication
 export async function addAgent(agentData) {
-	// Generate unique email & password
 	const email = await generateUniqueEmail(
 		`${agentData.agentName
 			.toLowerCase()
 			.replace(/\s+/g, "")}@deliveryagent.com`
 	)
 	const password = generateUniquePassword()
-
-	// Generate a unique agentId
 	const agentId = generateAgentId()
 
 	try {
@@ -89,12 +84,14 @@ export async function addAgent(agentData) {
 			image: agentData.image || "",
 			email,
 			personalEmail: agentData.personalEmail,
-			password,
+			password, // Note: Storing passwords in Firestore is insecure; consider alternatives
 			isAvaliable: true,
 			uid: user.uid, // Store Firebase Auth UID
-			role: "delivery_agent", // Assign role for future use
+			role: "delivery_agent",
 		})
+
 		toast.success("Agent Added Successfully")
+
 		const emailResp = await fetch("/api/send-email", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -125,62 +122,77 @@ export async function addAgent(agentData) {
 
 // Function to fetch all agents from Firestore
 export async function getAgents() {
-	const agentRef = collection(db, "agents")
-	const snapshot = await getDocs(agentRef)
-	return snapshot.docs.map((doc) => ({
-		agentId: doc.id, // Use Firestore Doc ID as Agent ID
-		...doc.data(),
-	}))
+	try {
+		const agentRef = collection(db, "agents")
+		const snapshot = await getDocs(agentRef)
+		return snapshot.docs.map((doc) => ({
+			agentId: doc.data().agentId, // Use the agentId field, not doc.id
+			...doc.data(),
+		}))
+	} catch (error) {
+		console.error("Error fetching agents:", error)
+		throw error
+	}
 }
 
 // Function to update agent details
-export const updateAgent = async (AgentId, updatedData) => {
+export async function updateAgent(agentId, updatedData) {
 	try {
-		// Query the 'agents' collection for documents where the 'agentId' field matches the given AgentId
+		// Query the 'agents' collection for documents where the 'agentId' field matches the given agentId
 		const q = query(
 			collection(db, "agents"),
-			where("agentId", "==", AgentId)
+			where("agentId", "==", agentId)
 		)
 		const querySnapshot = await getDocs(q)
 
 		// Check if a document with the matching agentId exists
 		if (!querySnapshot.empty) {
-			// Get the first matching document (agent)
 			const agentDoc = querySnapshot.docs[0] // Assuming agentId is unique
-			const agentDocRef = agentDoc.ref // Reference to the agent document
+			const agentDocRef = agentDoc.ref
 
-			// Update the document with the new data
-			await updateDoc(agentDocRef, updatedData)
+			// Explicitly exclude personalEmail, email, and password from updates
+			const { personalEmail, email, password, ...safeData } =
+				updatedData
+
+			// Update the document with the filtered data
+			await updateDoc(agentDocRef, safeData)
 			console.log("Agent updated successfully")
+			return { success: true }
 		} else {
-			console.error(`No agent found with agentId: ${AgentId}`)
+			console.error(`No agent found with agentId: ${agentId}`)
+			throw new Error(`No agent found with agentId: ${agentId}`)
 		}
 	} catch (error) {
-		console.error("Error updating agent: ", error)
+		console.error("Error updating agent:", error)
+		throw error
 	}
 }
-export const deleteAgent = async (AgentId) => {
+
+// Function to delete an agent
+export async function deleteAgent(agentId) {
 	try {
-		// Query the 'stores' collection for documents where the 'storeId' field matches the given storeId
+		// Query the 'agents' collection for documents where the 'agentId' field matches the given agentId
 		const q = query(
 			collection(db, "agents"),
-			where("agentId", "==", AgentId)
+			where("agentId", "==", agentId)
 		)
 		const querySnapshot = await getDocs(q)
 
-		// Check if a document with the matching storeId exists
+		// Check if a document with the matching agentId exists
 		if (!querySnapshot.empty) {
-			// Get the first matching document (store)
-			const storeDoc = querySnapshot.docs[0] // Assuming storeId is unique
-			const storeDocRef = storeDoc.ref // Reference to the store document
+			const agentDoc = querySnapshot.docs[0] // Assuming agentId is unique
+			const agentDocRef = agentDoc.ref
 
 			// Delete the document
-			await deleteDoc(storeDocRef)
+			await deleteDoc(agentDocRef)
 			console.log("Agent deleted successfully")
+			return { success: true }
 		} else {
-			console.error(`No agent found with AgentId: ${AgentId}`)
+			console.error(`No agent found with agentId: ${agentId}`)
+			throw new Error(`No agent found with agentId: ${agentId}`)
 		}
 	} catch (error) {
-		console.error("Error deleting store: ", error)
+		console.error("Error deleting agent:", error)
+		throw error
 	}
 }

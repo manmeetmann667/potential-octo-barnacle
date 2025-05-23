@@ -59,7 +59,7 @@ export default function Dashboard() {
 				const todayTimestamp = Timestamp.fromDate(today)
 
 				const ordersQuery = query(
-					collection(db, "orders"),
+					collection(db, "Orders"),
 					where("createdAt", ">=", todayTimestamp)
 				)
 				const ordersSnapshot = await getDocs(ordersQuery)
